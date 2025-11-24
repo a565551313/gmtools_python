@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip --version:*)",
+      "Bash(pip install:*)",
+      "Bash(pylint:*)",
+      "Bash(flake8:*)",
+      "Bash(bandit:*)",
+      "Bash(radon cc:*)",
+      "Bash(radon mi:*)",
+      "Bash(black:*)",
+      "Bash(python -m py_compile:*)",
+      "Bash(findstr:*)",
+      "Bash(python:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

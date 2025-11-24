@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GMTools API 调试器</title>
+    <style>
+        :root {
+            --bg-color: #1e1e1e;
+            --sidebar-bg: #252526;
+            --panel-bg: #1e1e1e;
+            --header-bg: #333333;
+            --border-color: #3e3e42;
+            --text-color: #cccccc;
+            --accent-color: #007acc;
+            --accent-hover: #0098ff;
+            --success-color: #4ec9b0;
+            --error-color: #f48771;
+            --input-bg: #3c3c3c;
+            --console-bg: #1e1e1e;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Header */
+        .header {
+            height: 40px;
+            background-color: var(--header-bg);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 14px;
+        }
+
+        .header-title {
+            font-weight: bold;
+            margin-right: 20px;
+        }
+
+        .global-setting {
+            display: flex;
+            align-items: center;
+            margin-left: auto;
+        }
+
+        .global-setting input {
+            background-color: var(--input-bg);
+            border: 1px solid var(--border-color);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 2px;
+            width: 200px;
+            margin-left: 10px;
+        }
+
+        /* Main Layout */
+        .container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 200px;
+            background-color: var(--sidebar-bg);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            padding: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 12px;
+            color: #858585;
+        }
+
+        .module-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            overflow-y: auto;
+        }
+
+        .module-item {
+            padding: 10px 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            font-size: 13px;
+        }
+
+        .module-item:hover {
+            background-color: #2a2d2e;
+        }
+
+        .module-item.active {
+            background-color: #37373d;
+            color: white;
+            border-left: 3px solid var(--accent-color);
+        }
+
+        /* Content Area */
+        .content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--panel-bg);
+        }
+
+        /* Function Tabs/List */
+        .function-bar {
+            background-color: var(--sidebar-bg);
+            border-bottom: 1px solid var(--border-color);
+            padding: 10px;
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+        }
+
+        .func-btn {
+            background-color: var(--input-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            padding: 6px 12px;
+            cursor: pointer;
+            border-radius: 2px;
+            white-space: nowrap;
+            font-size: 12px;
+        }
+
+        .func-btn:hover {
+            background-color: #4e4e4e;
+        }
+
+        .func-btn.active {
+            background-color: var(--accent-color);
+            color: white;
+            border-color: var(--accent-color);
+        }
+
+        /* Form Area */
+        .form-area {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .form-input {
+            width: 100%;
+            max-width: 500px;
+            padding: 8px;
+            background-color: var(--input-bg);
+            border: 1px solid var(--border-color);
+            color: white;
+            border-radius: 2px;
+            font-family: Consolas, monospace;
+        }
+
+        .form-input:focus {
+            border-color: var(--accent-color);
+            outline: none;
+        }
+
+        .form-hint {
+            font-size: 12px;
+            color: #858585;
+            margin-top: 4px;
+        }
+
+        /* Action Bar */
+        .action-bar {
+            padding: 15px 20px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            gap: 10px;
+            background-color: var(--sidebar-bg);
+        }
+
+        .btn {
+            padding: 6px 16px;
+            border: none;
+            border-radius: 2px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .btn-primary {
+            background-color: var(--accent-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--accent-hover);
+        }
+
+        /* Console */
+        .console-panel {
+            height: 250px;
+            background-color: var(--console-bg);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .console-header {
+            padding: 5px 10px;
+            background-color: var(--sidebar-bg);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: #858585;
+        }
+
+        .console-output {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            font-family: Consolas, 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .log-entry {
+            margin-bottom: 8px;
+            border-bottom: 1px solid #2d2d2d;
+            padding-bottom: 8px;
+        }
+
+        .log-time {
+            color: #858585;
+            margin-right: 10px;
+        }
+
+        .log-method {
+            color: #569cd6;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .log-status.success {
+            color: var(--success-color);
+        }
+
+        .log-status.error {
+            color: var(--error-color);
+        }
+
+        .log-data {
+            color: #ce9178;
+            white-space: pre-wrap;
+            margin-top: 4px;
+            display: block;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-color);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #424242;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #4f4f4f;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+        <div class="header-title">GMTools API 调试器</div>
+        <div class="global-setting">
+            <label>API Token:</label>
+            <input type="text" id="apiToken" value="my_secret_token">
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="sidebar">
+            <div class="sidebar-header">Modules</div>
+            <ul class="module-list" id="moduleList">
+                <!-- Modules injected here -->
+            </ul>
+        </div>
+
+        <div class="content">
+            <div class="function-bar" id="functionBar">
+                <!-- Functions injected here -->
+            </div>
+
+            <div class="form-area" id="formArea">
+                <h2 id="currentFuncTitle" style="margin-top:0; font-size:18px; color:white;">请选择一个功能</h2>
+                <div id="formInputs"></div>
+            </div>
+
+            <div class="action-bar">
+                <button class="btn btn-primary" onclick="executeRequest()">发送请求 (Execute)</button>
+                <button class="btn" style="background-color:#3c3c3c; color:white;" onclick="copyCurl()">复制 cURL</button>
+            </div>
+
+            <div class="console-panel">
+                <div class="console-header">
+                    <span>运行日志 (Console)</span>
+                    <button class="btn" style="background:none; color:#ccc; padding:2px;"
+                        onclick="clearConsole()">清空</button>
+                </div>
+                <div class="console-output" id="consoleOutput">
+                    <!-- Logs here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api';
+
+        const MODULES = {
+            account: {
+                name: "账号管理",
+                funcs: [
+                    { func: 'recharge_currency', name: '充值货币', args: { account: 'test_user', currency_type: 'yuanbao', amount: 1000 } },
+                    { func: 'send_travel_fee', name: '发送路费', args: { account: 'test_user', player_id: '123456' } },
+                    { func: 'recharge_gm_level', name: '充值GM等级', args: { player_id: '123456', amount: 100, gm_level: '1' } },
+                    { func: 'manage_account', name: '账号管理', args: { command: 'ban_account', target_id: 'test_user', id_type: '账号' } },
+                    { func: 'change_password', name: '修改密码', args: { account: 'test_user', new_password: 'new_password123' } },
+                    { func: 'give_title', name: '给予称谓', args: { player_id: '123456', title: '至尊VIP' } },
+                    { func: 'recharge_skill', name: '充值经验/技能', args: { player_id: '123456', amount: 10000, skill_type: '充值经验' } },
+                    { func: 'recharge_faction', name: '充值帮派/积分', args: { player_id: '123456', amount: 500, faction_type: '充值帮贡' } },
+                    { func: 'recharge_gm_coin', name: '充值GM币', args: { player_id: '123456', amount: 100 } },
+                    { func: 'recharge_record', name: '充值记录', args: { player_id: '123456' } },
+                    { func: 'set_bagua', name: '八卦设置', args: { bagua_name: '乾' } }
+                ]
+            },
+            pet: {
+                name: "宝宝管理",
+                funcs: [
+                    { func: 'get_pet_info', name: '获取宝宝信息', args: { char_id: '123456' } },
+                    { func: 'modify_pet', name: '修改宝宝', args: { char_id: '123456', pet_index: 1, modify_data: { '等级': 180, '气血': 10000 } } },
+                    { func: 'activate_merit', name: '激活功德录', args: { char_id: '123456' } },
+                    { func: 'custom_pet_equip', name: '定制宝宝装备', args: { char_id: '123456', equip_data: { 'type': '护腕', 'level': 150 } } }
+                ]
+            },
+            equipment: {
+                name: "装备管理",
+                funcs: [
+                    { func: 'get_equipment', name: '获取装备', args: { char_id: '123456' } },
+                    { func: 'send_equipment', name: '发送装备', args: { char_id: '123456', equip_data: { 'pos': 1, 'id': 1001 } } },
+                    { func: 'get_affix', name: '获取词条', args: { char_id: '123456' } },
+                    { func: 'modify_affix', name: '修改词条', args: { char_id: '123456', affix_data: { 'pos': 1, 'affix_list': ['无级别'] } } }
+                ]
+            },
+            gift: {
+                name: "物品赠送",
+                funcs: [
+                    { func: 'give_item', name: '赠送道具', args: { player_id: '123456', item_id: 'item_001', count: 10 } },
+                    { func: 'give_gem', name: '赠送宝石', args: { player_id: '123456', gem_id: 'gem_001', count: 5 } },
+                    { func: 'generate_cdk', name: '生成CDK', args: { type: 'gift_1', count: 10 } }
+                ]
+            },
+            character: {
+                name: "角色管理",
+                funcs: [
+                    { func: 'get_character_info', name: '获取角色信息', args: { char_id: '123456' } },
+                    { func: 'recover_character_props', name: '恢复角色道具', args: { char_id: '123456' } },
+                    { func: 'modify_character', name: '修改角色', args: { char_id: '123456', modify_data_str: "{['等级']=175}" } }
+                ]
+            },
+            game: {
+                name: "游戏管理",
+                funcs: [
+                    { func: 'send_broadcast', name: '发送广播', args: { content: '测试广播' } },
+                    { func: 'send_announcement', name: '发送公告', args: { content: '测试公告' } },
+                    { func: 'set_exp_rate', name: '设置经验倍率', args: { rate: '2.0' } }
+                ]
+            }
+        };
+
+        let currentModule = 'account';
+        let currentFunc = null;
+
+        function init() {
+            const moduleList = document.getElementById('moduleList');
+            for (const [key, value] of Object.entries(MODULES)) {
+                const li = document.createElement('li');
+                li.className = `module-item ${key === currentModule ? 'active' : ''}`;
+                li.innerText = `${value.name} (${key})`;
+                li.onclick = () => selectModule(key);
+                moduleList.appendChild(li);
+            }
+            selectModule(currentModule);
+        }
+
+        function selectModule(moduleName) {
+            currentModule = moduleName;
+
+            // Update sidebar active state
+            document.querySelectorAll('.module-item').forEach(el => {
+                el.classList.remove('active');
+                if (el.innerText.includes(`(${moduleName})`)) el.classList.add('active');
+            });
+
+            // Render function bar
+            const functionBar = document.getElementById('functionBar');
+            functionBar.innerHTML = '';
+            const funcs = MODULES[moduleName].funcs;
+
+            funcs.forEach((f, index) => {
+                const btn = document.createElement('div');
+                btn.className = 'func-btn';
+                btn.innerText = f.name;
+                btn.onclick = () => selectFunction(f);
+                functionBar.appendChild(btn);
+
+                if (index === 0) selectFunction(f);
+            });
+        }
+
+        function selectFunction(funcObj) {
+            currentFunc = funcObj;
+
+            // Update function bar active state
+            document.querySelectorAll('.func-btn').forEach(el => {
+                el.classList.remove('active');
+                if (el.innerText === funcObj.name) el.classList.add('active');
+            });
+
+            document.getElementById('currentFuncTitle').innerText = `${funcObj.name} (${funcObj.func})`;
+
+            // Generate forms
+            const formInputs = document.getElementById('formInputs');
+            formInputs.innerHTML = '';
+
+            for (const [argName, argValue] of Object.entries(funcObj.args)) {
+                const group = document.createElement('div');
+                group.className = 'form-group';
+
+                const label = document.createElement('label');
+                label.className = 'form-label';
+                label.innerText = argName;
+
+                let input;
+                if (typeof argValue === 'object') {
+                    input = document.createElement('textarea');
+                    input.rows = 5;
+                    input.value = JSON.stringify(argValue, null, 2);
+                } else {
+                    input = document.createElement('input');
+                    input.type = 'text';
+                    input.value = argValue;
+                }
+                input.className = 'form-input';
+                input.id = `arg-${argName}`;
+                input.dataset.type = typeof argValue;
+
+                group.appendChild(label);
+                group.appendChild(input);
+                formInputs.appendChild(group);
+            }
+        }
+
+        function getArgs() {
+            if (!currentFunc) return {};
+            const args = {};
+            for (const [argName, argValue] of Object.entries(currentFunc.args)) {
+                const input = document.getElementById(`arg-${argName}`);
+                if (input.dataset.type === 'object') {
+                    try {
+                        args[argName] = JSON.parse(input.value);
+                    } catch (e) {
+                        alert(`参数 ${argName} JSON 格式错误`);
+                        return null;
+                    }
+                } else if (input.dataset.type === 'number') {
+                    args[argName] = Number(input.value);
+                } else {
+                    args[argName] = input.value;
+                }
+            }
+            return args;
+        }
+
+        async function executeRequest() {
+            if (!currentFunc) return;
+
+            const args = getArgs();
+            if (!args) return;
+
+            const token = document.getElementById('apiToken').value;
+            const url = `${API_BASE}/${currentModule}`;
+            const payload = {
+                function: currentFunc.func,
+                args: args
+            };
+
+            log(`Sending POST ${url}`, 'info');
+            log(`Payload: ${JSON.stringify(payload)}`, 'info');
+
+            try {
+                const startTime = Date.now();
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const endTime = Date.now();
+                const duration = endTime - startTime;
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    log(`Success (${duration}ms): ${JSON.stringify(data, null, 2)}`, 'success');
+                } else {
+                    log(`Error ${response.status} (${duration}ms): ${JSON.stringify(data, null, 2)}`, 'error');
+                }
+            } catch (e) {
+                log(`Exception: ${e.message}`, 'error');
+            }
+        }
+
+        function log(message, type = 'info') {
+            const consoleOutput = document.getElementById('consoleOutput');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+
+            const time = new Date().toLocaleTimeString();
+            const statusClass = type === 'success' ? 'log-status success' : (type === 'error' ? 'log-status error' : '');
+
+            entry.innerHTML = `
+            <div>
+                <span class="log-time">[${time}]</span>
+                <span class="log-method">${currentModule.toUpperCase()}.${currentFunc ? currentFunc.func : 'Unknown'}</span>
+                <span class="${statusClass}">${type.toUpperCase()}</span>
+            </div>
+            <code class="log-data">${message}</code>
+        `;
+
+            consoleOutput.appendChild(entry);
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+
+        function clearConsole() {
+            document.getElementById('consoleOutput').innerHTML = '';
+        }
+
+        function copyCurl() {
+            if (!currentFunc) return;
+            const args = getArgs();
+            if (!args) return;
+
+            const token = document.getElementById('apiToken').value;
+            const url = `${window.location.origin}${API_BASE}/${currentModule}`;
+            const payload = {
+                function: currentFunc.func,
+                args: args
+            };
+
+            const curl = `curl -X POST "${url}" \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer ${token}" \\
+  -d '${JSON.stringify(payload)}'`;
+
+            navigator.clipboard.writeText(curl).then(() => {
+                log('cURL command copied to clipboard', 'info');
+            });
+        }
+
+        // Start
+        init();
+    </script>
+
+</body>
+
+</html>

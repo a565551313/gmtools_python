@@ -1,0 +1,27 @@
+{
+    "Login": {
+        "Account": "a123456",
+        "Password": "f74e04c20ed7b25c4794ce72119a31a2d12c52a6e426dceb909e961e81a3343e",
+        "RememberPassword": true,
+        "AutoLogin": false,
+        "LastLogin": "2025-11-24T19:07:33.893133"
+    },
+    "Server": {
+        "Host": "127.0.0.1",
+        "Port": 8080
+    },
+    "PlayerHistory": [
+        "10002",
+        "10020",
+        "67890",
+        "12345"
+    ],
+    "api_host": "127.0.0.1",
+    "api_port": 8009,
+    "api_auto_start": false,
+    "api_known_hosts": [
+        "127.0.0.1",
+        "0.0.0.0"
+    ],
+    "api_token": "mkkkkkooolll"
+}
