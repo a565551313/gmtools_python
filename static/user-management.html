@@ -1,0 +1,1180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#6366f1">
+    <title>GMTools 用户管理</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: { "50": "#eef2ff", "100": "#e0e7ff", "200": "#c7d2fe", "300": "#a5b4fc", "400": "#818cf8", "500": "#6366f1", "600": "#4f46e5", "700": "#4338ca", "800": "#3730a3", "900": "#312e81" }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        * {
+            font-family: 'Inter', sans-serif;
+        }
+
+        [x-cloak] {
+            display: none !important;
+        }
+
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a1a1a1;
+        }
+
+        /* 动画 */
+        .fade-in {
+            animation: fadeIn 0.3s ease;
+        }
+
+        .slide-up {
+            animation: slideUp 0.3s ease;
+        }
+
+        .slide-down {
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* 加载动画 */
+        .spinner {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 min-h-screen" x-data="app()" x-init="init()">
+
+    <!-- Toast 通知 -->
+    <div class="fixed top-4 right-4 z-50 space-y-2" x-cloak>
+        <template x-for="toast in toasts" :key="toast.id">
+            <div x-show="toast.show" x-transition:enter="transition ease-out duration-300"
+                x-transition:enter-start="opacity-0 transform translate-x-8"
+                x-transition:enter-end="opacity-100 transform translate-x-0"
+                x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100"
+                x-transition:leave-end="opacity-0" :class="{
+                     'bg-green-500': toast.type === 'success',
+                     'bg-red-500': toast.type === 'error',
+                     'bg-blue-500': toast.type === 'info',
+                     'bg-yellow-500': toast.type === 'warning'
+                 }" class="flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg text-white min-w-[280px]">
+                <i :data-lucide="toast.type === 'success' ? 'check-circle' : toast.type === 'error' ? 'x-circle' : toast.type === 'warning' ? 'alert-triangle' : 'info'"
+                    class="w-5 h-5"></i>
+                <span x-text="toast.message" class="flex-1 text-sm font-medium"></span>
+                <button @click="removeToast(toast.id)" class="hover:bg-white/20 rounded p-1">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </template>
+    </div>
+
+    <!-- 确认对话框 -->
+    <div x-show="confirmDialog.show" x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+        x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100" x-transition:leave="transition ease-in duration-150"
+        x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0">
+        <div @click.outside="confirmDialog.show = false"
+            class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 slide-up">
+            <div class="flex items-center gap-4 mb-4">
+                <div :class="{
+                    'bg-red-100 text-red-600': confirmDialog.type === 'danger',
+                    'bg-yellow-100 text-yellow-600': confirmDialog.type === 'warning',
+                    'bg-blue-100 text-blue-600': confirmDialog.type === 'info'
+                }" class="w-12 h-12 rounded-full flex items-center justify-center">
+                    <i :data-lucide="confirmDialog.type === 'danger' ? 'trash-2' : confirmDialog.type === 'warning' ? 'alert-triangle' : 'info'"
+                        class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900" x-text="confirmDialog.title"></h3>
+                    <p class="text-sm text-gray-500" x-text="confirmDialog.message"></p>
+                </div>
+            </div>
+            <div class="flex gap-3 mt-6">
+                <button @click="confirmDialog.show = false"
+                    class="flex-1 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition">
+                    取消
+                </button>
+                <button @click="confirmDialog.onConfirm(); confirmDialog.show = false" :class="{
+                            'bg-red-500 hover:bg-red-600': confirmDialog.type === 'danger',
+                            'bg-yellow-500 hover:bg-yellow-600': confirmDialog.type === 'warning',
+                            'bg-primary-500 hover:bg-primary-600': confirmDialog.type === 'info'
+                        }" class="flex-1 px-4 py-2.5 text-white font-medium rounded-xl transition">
+                    确认
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 导航栏 -->
+    <nav class="gradient-bg text-white sticky top-0 z-40 shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                        <i data-lucide="gamepad-2" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-lg font-bold">GMTools</h1>
+                        <p class="text-xs text-white/70 hidden sm:block">用户管理系统</p>
+                    </div>
+                </div>
+
+                <div x-show="isLoggedIn" class="flex items-center gap-2">
+                    <a href="/level-permissions"
+                        class="hidden sm:flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl transition text-sm font-medium">
+                        <i data-lucide="settings" class="w-4 h-4"></i>
+                        权限配置
+                    </a>
+                    <a href="/activation-codes"
+                        class="hidden sm:flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl transition text-sm font-medium">
+                        <i data-lucide="ticket" class="w-4 h-4"></i>
+                        激活码管理
+                    </a>
+                    <button @click="logout()"
+                        class="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl transition text-sm font-medium">
+                        <i data-lucide="log-out" class="w-4 h-4"></i>
+                        <span class="hidden sm:inline">退出</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主内容区 -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+        <!-- 登录区域 -->
+        <div x-show="!isLoggedIn" x-cloak class="min-h-[calc(100vh-8rem)] flex items-center justify-center">
+            <div class="w-full max-w-md">
+                <div class="bg-white rounded-3xl shadow-xl overflow-hidden">
+                    <!-- 登录头部 -->
+                    <div class="gradient-bg px-8 py-10 text-center text-white">
+                        <div class="w-20 h-20 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            <i data-lucide="shield-check" class="w-10 h-10"></i>
+                        </div>
+                        <h2 class="text-2xl font-bold mb-2">欢迎回来</h2>
+                        <p class="text-white/70">请登录您的管理员账户</p>
+                    </div>
+
+                    <!-- 登录表单 -->
+                    <div class="p-8">
+                        <form @submit.prevent="login()">
+                            <div class="space-y-5">
+                                <!-- 用户名 -->
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">用户名</label>
+                                    <div class="relative">
+                                        <div
+                                            class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                            <i data-lucide="user" class="w-5 h-5 text-gray-400"></i>
+                                        </div>
+                                        <input type="text" x-model="loginForm.username" required
+                                            class="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition outline-none"
+                                            placeholder="请输入用户名">
+                                    </div>
+                                </div>
+
+                                <!-- 密码 -->
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">密码</label>
+                                    <div class="relative">
+                                        <div
+                                            class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                            <i data-lucide="lock" class="w-5 h-5 text-gray-400"></i>
+                                        </div>
+                                        <input :type="showPassword ? 'text' : 'password'" x-model="loginForm.password"
+                                            required
+                                            class="w-full pl-12 pr-12 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition outline-none"
+                                            placeholder="请输入密码">
+                                        <button type="button" @click="showPassword = !showPassword"
+                                            class="absolute inset-y-0 right-0 pr-4 flex items-center">
+                                            <i :data-lucide="showPassword ? 'eye-off' : 'eye'"
+                                                class="w-5 h-5 text-gray-400 hover:text-gray-600"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- 登录按钮 -->
+                                <button type="submit" :disabled="loading"
+                                    class="w-full py-3 bg-gradient-to-r from-primary-500 to-purple-600 hover:from-primary-600 hover:to-purple-700 text-white font-semibold rounded-xl shadow-lg shadow-primary-500/30 transition transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2">
+                                    <i data-lucide="loader-2" class="w-5 h-5 spinner" x-show="loading"></i>
+                                    <span x-text="loading ? '登录中...' : '登录'"></span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 管理区域 -->
+        <div x-show="isLoggedIn" x-cloak class="space-y-6">
+
+            <!-- 用户信息卡片 -->
+            <div class="gradient-bg rounded-2xl p-6 text-white shadow-xl">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div class="flex items-center gap-4">
+                        <div
+                            class="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center text-2xl font-bold">
+                            <span x-text="currentUser?.username?.charAt(0).toUpperCase()"></span>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-bold" x-text="currentUser?.username"></h3>
+                            <p class="text-white/70 flex items-center gap-2">
+                                <i data-lucide="shield" class="w-4 h-4"></i>
+                                <span x-text="getRoleName(currentUser?.role)"></span>
+                            </p>
+                        </div>
+                    </div>
+                    <div class="flex gap-3">
+                        <div class="bg-white/20 rounded-xl px-5 py-3 text-center">
+                            <div class="text-2xl font-bold" x-text="currentUser?.level"></div>
+                            <div class="text-xs text-white/70">等级</div>
+                        </div>
+                        <div class="bg-white/20 rounded-xl px-5 py-3 text-center">
+                            <div class="text-2xl font-bold" x-text="users.length"></div>
+                            <div class="text-xs text-white/70">用户数</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 标签页 -->
+            <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
+                <!-- 标签头 -->
+                <div class="border-b border-gray-100">
+                    <div class="flex">
+                        <button @click="activeTab = 'users'; loadUsers()"
+                            :class="activeTab === 'users' ? 'text-primary-600 border-primary-500' : 'text-gray-500 border-transparent hover:text-gray-700'"
+                            class="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-4 border-b-2 font-medium transition">
+                            <i data-lucide="users" class="w-5 h-5"></i>
+                            <span>用户列表</span>
+                        </button>
+                        <button @click="activeTab = 'logs'; loadLogs()"
+                            :class="activeTab === 'logs' ? 'text-primary-600 border-primary-500' : 'text-gray-500 border-transparent hover:text-gray-700'"
+                            class="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-4 border-b-2 font-medium transition">
+                            <i data-lucide="scroll-text" class="w-5 h-5"></i>
+                            <span>操作日志</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 用户列表 -->
+                <div x-show="activeTab === 'users'" class="p-4 sm:p-6">
+                    <!-- 工具栏 -->
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                        <div class="flex items-center gap-3">
+                            <span class="px-3 py-1 bg-gray-100 rounded-lg text-sm text-gray-600">
+                                共 <span x-text="users.length" class="font-semibold"></span> 个用户
+                            </span>
+                        </div>
+                        <button @click="openAddUserModal()"
+                            class="flex items-center justify-center gap-2 px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-white font-medium rounded-xl transition shadow-lg shadow-primary-500/30">
+                            <i data-lucide="user-plus" class="w-5 h-5"></i>
+                            添加用户
+                        </button>
+                    </div>
+
+                    <!-- 加载状态 -->
+                    <div x-show="loading" class="flex items-center justify-center py-12">
+                        <i data-lucide="loader-2" class="w-8 h-8 text-primary-500 spinner"></i>
+                    </div>
+
+                    <!-- 空状态 -->
+                    <div x-show="!loading && users.length === 0" class="text-center py-12">
+                        <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <i data-lucide="users" class="w-8 h-8 text-gray-400"></i>
+                        </div>
+                        <h3 class="text-lg font-medium text-gray-900 mb-1">暂无用户</h3>
+                        <p class="text-gray-500">点击上方按钮添加第一个用户</p>
+                    </div>
+
+                    <!-- 桌面端表格 -->
+                    <div x-show="!loading && users.length > 0" class="hidden lg:block overflow-x-auto">
+                        <table class="w-full">
+                            <thead>
+                                <tr class="text-left text-sm text-gray-500 border-b border-gray-100">
+                                    <th class="pb-4 font-medium">用户</th>
+                                    <th class="pb-4 font-medium">邮箱</th>
+                                    <th class="pb-4 font-medium">等级</th>
+                                    <th class="pb-4 font-medium">角色</th>
+                                    <th class="pb-4 font-medium">状态</th>
+                                    <th class="pb-4 font-medium text-right">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-50">
+                                <template x-for="user in users" :key="user.id">
+                                    <tr class="hover:bg-gray-50 transition">
+                                        <td class="py-4">
+                                            <div class="flex items-center gap-3">
+                                                <div
+                                                    class="w-10 h-10 bg-gradient-to-br from-primary-400 to-purple-500 rounded-xl flex items-center justify-center text-white font-semibold">
+                                                    <span x-text="user.username.charAt(0).toUpperCase()"></span>
+                                                </div>
+                                                <span class="font-medium text-gray-900" x-text="user.username"></span>
+                                            </div>
+                                        </td>
+                                        <td class="py-4 text-gray-500" x-text="user.email || '-'"></td>
+                                        <td class="py-4">
+                                            <span
+                                                class="px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-sm font-medium">
+                                                Lv.<span x-text="user.level"></span>
+                                            </span>
+                                        </td>
+                                        <td class="py-4 text-gray-600" x-text="getRoleName(user.role)"></td>
+                                        <td class="py-4">
+                                            <span
+                                                :class="user.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'"
+                                                class="px-3 py-1 rounded-full text-sm font-medium">
+                                                <span x-text="user.is_active ? '活跃' : '禁用'"></span>
+                                            </span>
+                                        </td>
+                                        <td class="py-4">
+                                            <div class="flex items-center justify-end gap-2">
+                                                <button @click="openEditModal(user)"
+                                                    class="p-2 text-gray-400 hover:text-primary-500 hover:bg-primary-50 rounded-lg transition"
+                                                    title="编辑">
+                                                    <i data-lucide="edit-3" class="w-4 h-4"></i>
+                                                </button>
+                                                <button @click="resetPassword(user)"
+                                                    class="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition"
+                                                    title="重置密码">
+                                                    <i data-lucide="key" class="w-4 h-4"></i>
+                                                </button>
+                                                <button @click="toggleUserStatus(user)"
+                                                    :class="user.is_active ? 'hover:text-yellow-500 hover:bg-yellow-50' : 'hover:text-green-500 hover:bg-green-50'"
+                                                    class="p-2 text-gray-400 rounded-lg transition"
+                                                    :title="user.is_active ? '禁用' : '启用'">
+                                                    <i :data-lucide="user.is_active ? 'user-x' : 'user-check'"
+                                                        class="w-4 h-4"></i>
+                                                </button>
+                                                <button @click="deleteUser(user)"
+                                                    class="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
+                                                    title="删除">
+                                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- 移动端卡片列表 -->
+                    <div x-show="!loading && users.length > 0" class="lg:hidden space-y-4">
+                        <template x-for="user in users" :key="user.id">
+                            <div class="bg-gray-50 rounded-xl p-4">
+                                <div class="flex items-start gap-3 mb-3">
+                                    <div
+                                        class="w-12 h-12 bg-gradient-to-br from-primary-400 to-purple-500 rounded-xl flex items-center justify-center text-white font-semibold text-lg">
+                                        <span x-text="user.username.charAt(0).toUpperCase()"></span>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex items-center gap-2 flex-wrap">
+                                            <span class="font-semibold text-gray-900" x-text="user.username"></span>
+                                            <span
+                                                class="px-2 py-0.5 bg-primary-100 text-primary-700 rounded-full text-xs font-medium">
+                                                Lv.<span x-text="user.level"></span>
+                                            </span>
+                                            <span
+                                                :class="user.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'"
+                                                class="px-2 py-0.5 rounded-full text-xs font-medium">
+                                                <span x-text="user.is_active ? '活跃' : '禁用'"></span>
+                                            </span>
+                                        </div>
+                                        <p class="text-sm text-gray-500 truncate" x-text="user.email || '无邮箱'"></p>
+                                        <p class="text-sm text-gray-400" x-text="getRoleName(user.role)"></p>
+                                    </div>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button @click="openEditModal(user)"
+                                        class="flex-1 flex items-center justify-center gap-1.5 py-2 bg-white hover:bg-gray-100 text-gray-700 text-sm font-medium rounded-lg transition">
+                                        <i data-lucide="edit-3" class="w-4 h-4"></i>
+                                        编辑
+                                    </button>
+                                    <button @click="resetPassword(user)"
+                                        class="flex-1 flex items-center justify-center gap-1.5 py-2 bg-white hover:bg-gray-100 text-gray-700 text-sm font-medium rounded-lg transition">
+                                        <i data-lucide="key" class="w-4 h-4"></i>
+                                        重置密码
+                                    </button>
+                                    <button @click="showUserActions(user)"
+                                        class="flex items-center justify-center px-3 py-2 bg-white hover:bg-gray-100 text-gray-700 rounded-lg transition">
+                                        <i data-lucide="more-vertical" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- 操作日志 -->
+                <div x-show="activeTab === 'logs'" class="p-4 sm:p-6">
+                    <!-- 工具栏 -->
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                        <div class="flex items-center gap-3">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" x-model="selectAllLogs" @change="toggleSelectAllLogs()"
+                                    class="w-5 h-5 rounded border-gray-300 text-primary-500 focus:ring-primary-500">
+                                <span class="text-sm text-gray-600">全选</span>
+                            </label>
+                            <span x-show="selectedLogs.length > 0"
+                                class="px-3 py-1 bg-primary-100 text-primary-700 rounded-lg text-sm font-medium">
+                                已选 <span x-text="selectedLogs.length"></span> 条
+                            </span>
+                        </div>
+                        <div class="flex gap-2">
+                            <button @click="deleteSelectedLogs()" :disabled="selectedLogs.length === 0"
+                                class="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                删除选中
+                            </button>
+                            <button @click="clearAllLogs()"
+                                class="flex items-center gap-2 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-medium rounded-xl transition">
+                                <i data-lucide="trash" class="w-4 h-4"></i>
+                                清空全部
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 加载状态 -->
+                    <div x-show="loading" class="flex items-center justify-center py-12">
+                        <i data-lucide="loader-2" class="w-8 h-8 text-primary-500 spinner"></i>
+                    </div>
+
+                    <!-- 空状态 -->
+                    <div x-show="!loading && logs.length === 0" class="text-center py-12">
+                        <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <i data-lucide="scroll-text" class="w-8 h-8 text-gray-400"></i>
+                        </div>
+                        <h3 class="text-lg font-medium text-gray-900 mb-1">暂无日志</h3>
+                        <p class="text-gray-500">操作记录将在这里显示</p>
+                    </div>
+
+                    <!-- 日志列表 -->
+                    <div x-show="!loading && logs.length > 0" class="space-y-3">
+                        <template x-for="log in logs" :key="log.id">
+                            <div class="flex items-start gap-4 p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition">
+                                <input type="checkbox" :value="log.id" x-model="selectedLogs"
+                                    class="w-5 h-5 mt-1 rounded border-gray-300 text-primary-500 focus:ring-primary-500">
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex flex-wrap items-center gap-2 mb-1">
+                                        <span class="font-medium text-gray-900" x-text="log.action"></span>
+                                        <span class="text-sm text-primary-600 font-medium"
+                                            x-text="log.username || 'N/A'"></span>
+                                    </div>
+                                    <p x-show="log.details" class="text-sm text-gray-500 mb-2" x-text="log.details"></p>
+                                    <div class="flex items-center gap-2 text-xs text-gray-400">
+                                        <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+                                        <span x-text="formatDate(log.created_at)"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 添加用户模态框 -->
+    <div x-show="addUserModal" x-cloak
+        class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm"
+        x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100">
+        <div @click.outside="addUserModal = false"
+            class="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-3xl shadow-2xl overflow-hidden slide-up">
+            <!-- 头部 -->
+            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <h3 class="text-lg font-semibold text-gray-900">添加新用户</h3>
+                <button @click="addUserModal = false" class="p-2 hover:bg-gray-100 rounded-lg transition">
+                    <i data-lucide="x" class="w-5 h-5 text-gray-500"></i>
+                </button>
+            </div>
+
+            <!-- 表单 -->
+            <div class="p-6 max-h-[70vh] overflow-y-auto">
+                <form @submit.prevent="createUser()" class="space-y-5">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">用户名</label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                <i data-lucide="user" class="w-5 h-5 text-gray-400"></i>
+                            </div>
+                            <input type="text" x-model="newUser.username" required minlength="3"
+                                class="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition outline-none"
+                                placeholder="至少3个字符">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">邮箱</label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                <i data-lucide="mail" class="w-5 h-5 text-gray-400"></i>
+                            </div>
+                            <input type="email" x-model="newUser.email" required
+                                class="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition outline-none"
+                                placeholder="example@domain.com">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">等级 (1-10)</label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                <i data-lucide="bar-chart-3" class="w-5 h-5 text-gray-400"></i>
+                            </div>
+                            <input type="number" x-model="newUser.level" min="1" max="10" required
+                                class="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition outline-none">
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1.5">用户将自动获得该等级的所有权限</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">角色</label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                <i data-lucide="shield" class="w-5 h-5 text-gray-400"></i>
+                            </div>
+                            <select x-model="newUser.role"
+                                class="w-full pl-12 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition outline-none appearance-none">
+                                <option value="user">普通用户</option>
+                                <option value="admin">管理员</option>
+                            </select>
+                            <div class="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
+                                <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400"></i>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- 底部 -->
+            <div class="flex gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50">
+                <button @click="addUserModal = false"
+                    class="flex-1 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium rounded-xl transition">
+                    取消
+                </button>
+                <button @click="createUser()" :disabled="loading"
+                    class="flex-1 py-3 bg-primary-500 hover:bg-primary-600 text-white font-medium rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-50">
+                    <i data-lucide="loader-2" class="w-5 h-5 spinner" x-show="loading"></i>
+                    创建用户
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 编辑用户模态框 -->
+    <div x-show="editUserModal" x-cloak
+        class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm"
+        x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100">
+        <div @click.outside="editUserModal = false"
+            class="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-3xl shadow-2xl overflow-hidden slide-up">
+            <!-- 头部 -->
+            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <h3 class="text-lg font-semibold text-gray-900">编辑用户</h3>
+                <button @click="editUserModal = false" class="p-2 hover:bg-gray-100 rounded-lg transition">
+                    <i data-lucide="x" class="w-5 h-5 text-gray-500"></i>
+                </button>
+            </div>
+
+            <!-- 表单 -->
+            <div class="p-6">
+                <form @submit.prevent="updateUser()" class="space-y-5">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">用户名</label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                <i data-lucide="user" class="w-5 h-5 text-gray-400"></i>
+                            </div>
+                            <input type="text" x-model="editingUser.username" disabled
+                                class="w-full pl-12 pr-4 py-3 bg-gray-100 border border-gray-200 rounded-xl text-gray-500 cursor-not-allowed">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">等级 (1-10)</label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                <i data-lucide="bar-chart-3" class="w-5 h-5 text-gray-400"></i>
+                            </div>
+                            <input type="number" x-model="editingUser.level" min="1" max="10" required
+                                class="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition outline-none">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">角色</label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                <i data-lucide="shield" class="w-5 h-5 text-gray-400"></i>
+                            </div>
+                            <select x-model="editingUser.role"
+                                class="w-full pl-12 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition outline-none appearance-none">
+                                <option value="user">普通用户</option>
+                                <option value="admin">管理员</option>
+                                <option value="super_admin">超级管理员</option>
+                            </select>
+                            <div class="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
+                                <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400"></i>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- 底部 -->
+            <div class="flex gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50">
+                <button @click="editUserModal = false"
+                    class="flex-1 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium rounded-xl transition">
+                    取消
+                </button>
+                <button @click="updateUser()" :disabled="loading"
+                    class="flex-1 py-3 bg-primary-500 hover:bg-primary-600 text-white font-medium rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-50">
+                    <i data-lucide="loader-2" class="w-5 h-5 spinner" x-show="loading"></i>
+                    保存更改
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 密码显示模态框 -->
+    <div x-show="passwordModal" x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+        x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100">
+        <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden slide-up">
+            <!-- 头部 -->
+            <div class="gradient-bg px-6 py-8 text-center text-white">
+                <div class="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <i data-lucide="check-circle" class="w-8 h-8"></i>
+                </div>
+                <h3 class="text-xl font-bold" x-text="passwordModalTitle"></h3>
+            </div>
+
+            <!-- 内容 -->
+            <div class="p-6">
+                <p class="text-center text-gray-500 mb-4">请妥善保管以下临时密码（点击复制）</p>
+                <div @click="copyPassword()"
+                    class="bg-gray-900 text-green-400 font-mono text-2xl tracking-widest text-center py-6 rounded-xl cursor-pointer hover:bg-gray-800 transition border-2 border-dashed border-gray-700"
+                    x-text="tempPassword">
+                </div>
+                <p class="text-center text-yellow-600 text-sm mt-4 flex items-center justify-center gap-2">
+                    <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+                    此密码只显示一次，请立即保存
+                </p>
+            </div>
+
+            <!-- 底部 -->
+            <div class="px-6 py-4 border-t border-gray-100 bg-gray-50">
+                <button @click="passwordModal = false"
+                    class="w-full py-3 bg-primary-500 hover:bg-primary-600 text-white font-medium rounded-xl transition">
+                    我已保存，关闭
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 移动端操作菜单 -->
+    <div x-show="mobileActionsMenu" x-cloak
+        class="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm"
+        x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100" @click.self="mobileActionsMenu = false">
+        <div class="bg-white w-full rounded-t-3xl shadow-2xl slide-up safe-area-bottom">
+            <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto my-4"></div>
+            <div class="px-4 pb-8 space-y-2">
+                <button @click="toggleUserStatus(selectedUser); mobileActionsMenu = false"
+                    class="w-full flex items-center gap-4 p-4 hover:bg-gray-50 rounded-xl transition">
+                    <div :class="selectedUser?.is_active ? 'bg-yellow-100 text-yellow-600' : 'bg-green-100 text-green-600'"
+                        class="w-10 h-10 rounded-full flex items-center justify-center">
+                        <i :data-lucide="selectedUser?.is_active ? 'user-x' : 'user-check'" class="w-5 h-5"></i>
+                    </div>
+                    <span class="font-medium text-gray-900" x-text="selectedUser?.is_active ? '禁用用户' : '启用用户'"></span>
+                </button>
+                <button @click="deleteUser(selectedUser); mobileActionsMenu = false"
+                    class="w-full flex items-center gap-4 p-4 hover:bg-gray-50 rounded-xl transition">
+                    <div class="w-10 h-10 bg-red-100 text-red-600 rounded-full flex items-center justify-center">
+                        <i data-lucide="trash-2" class="w-5 h-5"></i>
+                    </div>
+                    <span class="font-medium text-gray-900">删除用户</span>
+                </button>
+                <button @click="mobileActionsMenu = false"
+                    class="w-full p-4 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium text-gray-600 transition mt-4">
+                    取消
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 底部导航 (移动端) -->
+    <div x-show="isLoggedIn"
+                class="sm:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 safe-area-bottom">
+                <div class="flex">
+                    <button @click="activeTab = 'users'; loadUsers()"
+                        :class="activeTab === 'users' ? 'text-primary-600' : 'text-gray-400'"
+                        class="flex-1 flex flex-col items-center gap-1 py-3">
+                        <i data-lucide="users" class="w-5 h-5"></i>
+                        <span class="text-xs font-medium">用户</span>
+                    </button>
+                    <button @click="activeTab = 'logs'; loadLogs()"
+                        :class="activeTab === 'logs' ? 'text-primary-600' : 'text-gray-400'"
+                        class="flex-1 flex flex-col items-center gap-1 py-3">
+                        <i data-lucide="scroll-text" class="w-5 h-5"></i>
+                        <span class="text-xs font-medium">日志</span>
+                    </button>
+                    <a href="/level-permissions" class="flex-1 flex flex-col items-center gap-1 py-3 text-gray-400">
+                        <i data-lucide="settings" class="w-5 h-5"></i>
+                        <span class="text-xs font-medium">设置</span>
+                    </a>
+                    <a href="/activation-codes" class="flex-1 flex flex-col items-center gap-1 py-3 text-gray-400">
+                        <i data-lucide="ticket" class="w-5 h-5"></i>
+                        <span class="text-xs font-medium">激活码</span>
+                    </a>
+                </div>
+            </div>
+
+    <script>
+        function app() {
+            return {
+                // 状态
+                isLoggedIn: false,
+                loading: false,
+                token: null,
+                currentUser: null,
+
+                // 数据
+                users: [],
+                logs: [],
+                selectedLogs: [],
+                selectAllLogs: false,
+
+                // UI状态
+                activeTab: 'users',
+                showPassword: false,
+                addUserModal: false,
+                editUserModal: false,
+                passwordModal: false,
+                mobileActionsMenu: false,
+                passwordModalTitle: '',
+                tempPassword: '',
+                selectedUser: null,
+
+                // 表单
+                loginForm: { username: '', password: '' },
+                newUser: { username: '', email: '', level: 1, role: 'user' },
+                editingUser: { id: null, username: '', level: 1, role: 'user' },
+
+                // Toast
+                toasts: [],
+                toastId: 0,
+
+                // 确认对话框
+                confirmDialog: {
+                    show: false,
+                    type: 'info',
+                    title: '',
+                    message: '',
+                    onConfirm: () => { }
+                },
+
+                // 初始化
+                async init() {
+                    const storedToken = localStorage.getItem('access_token');
+                    if (storedToken) {
+                        this.token = storedToken;
+                        try {
+                            const res = await this.api('/api/users/me');
+                            this.currentUser = res.user;
+                            this.isLoggedIn = true;
+                            this.loadUsers();
+                        } catch (e) {
+                            localStorage.removeItem('access_token');
+                            this.token = null;
+                        }
+                    }
+                    this.$nextTick(() => lucide.createIcons());
+                },
+
+                // API 请求
+                async api(url, options = {}) {
+                    const headers = { 'Content-Type': 'application/json' };
+                    if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
+
+                    const res = await fetch(url, { ...options, headers });
+                    const data = await res.json();
+
+                    if (!res.ok) throw new Error(data.detail || '请求失败');
+                    return data;
+                },
+
+                // 登录
+                async login() {
+                    this.loading = true;
+                    try {
+                        const data = await this.api('/api/users/login', {
+                            method: 'POST',
+                            body: JSON.stringify(this.loginForm)
+                        });
+
+                        if (!['admin', 'super_admin'].includes(data.user.role)) {
+                            this.showToast('只有管理员可以访问', 'error');
+                            return;
+                        }
+
+                        this.token = data.access_token;
+                        localStorage.setItem('access_token', this.token);
+                        this.currentUser = data.user;
+                        this.isLoggedIn = true;
+                        this.showToast('登录成功', 'success');
+                        this.loadUsers();
+                        this.$nextTick(() => lucide.createIcons());
+                    } catch (e) {
+                        this.showToast(e.message, 'error');
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                // 退出
+                logout() {
+                    this.confirm('确认退出', '确定要退出登录吗？', 'warning', () => {
+                        this.token = null;
+                        this.currentUser = null;
+                        this.isLoggedIn = false;
+                        localStorage.removeItem('access_token');
+                        this.loginForm.password = '';
+                        this.showToast('已退出登录', 'info');
+                        this.$nextTick(() => lucide.createIcons());
+                    });
+                },
+
+                // 加载用户
+                async loadUsers() {
+                    this.loading = true;
+                    try {
+                        const data = await this.api('/api/users/');
+                        this.users = data.users;
+                        this.$nextTick(() => lucide.createIcons());
+                    } catch (e) {
+                        this.showToast(e.message, 'error');
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                // 加载日志
+                async loadLogs() {
+                    this.loading = true;
+                    try {
+                        const data = await this.api('/api/users/logs/all?limit=100');
+                        this.logs = data.logs;
+                        this.selectedLogs = [];
+                        this.selectAllLogs = false;
+                        this.$nextTick(() => lucide.createIcons());
+                    } catch (e) {
+                        this.showToast(e.message, 'error');
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                // 创建用户
+                async createUser() {
+                    if (!this.newUser.username || !this.newUser.email) {
+                        this.showToast('请填写完整信息', 'warning');
+                        return;
+                    }
+
+                    this.loading = true;
+                    try {
+                        const data = await this.api('/api/users/', {
+                            method: 'POST',
+                            body: JSON.stringify(this.newUser)
+                        });
+
+                        this.addUserModal = false;
+                        this.showPasswordModal('用户创建成功', data.temp_password);
+                        this.newUser = { username: '', email: '', level: 1, role: 'user' };
+                        this.loadUsers();
+                    } catch (e) {
+                        this.showToast(e.message, 'error');
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                // 打开添加用户模态框
+                openAddUserModal() {
+                    this.newUser = { username: '', email: '', level: 1, role: 'user' };
+                    this.addUserModal = true;
+                    this.$nextTick(() => lucide.createIcons());
+                },
+
+                // 打开编辑模态框
+                openEditModal(user) {
+                    this.editingUser = { id: user.id, username: user.username, level: user.level, role: user.role };
+                    this.editUserModal = true;
+                    this.$nextTick(() => lucide.createIcons());
+                },
+
+                // 更新用户
+                async updateUser() {
+                    this.loading = true;
+                    try {
+                        await this.api(`/api/users/${this.editingUser.id}/level`, {
+                            method: 'PUT',
+                            body: JSON.stringify({ level: parseInt(this.editingUser.level) })
+                        });
+                        await this.api(`/api/users/${this.editingUser.id}/role`, {
+                            method: 'PUT',
+                            body: JSON.stringify({ role: this.editingUser.role })
+                        });
+
+                        this.editUserModal = false;
+                        this.showToast('更新成功', 'success');
+                        this.loadUsers();
+                    } catch (e) {
+                        this.showToast(e.message, 'error');
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                // 重置密码
+                resetPassword(user) {
+                    this.confirm('重置密码', `确定要重置用户 "${user.username}" 的密码吗？`, 'warning', async () => {
+                        try {
+                            const data = await this.api(`/api/users/${user.id}/reset-password`, {
+                                method: 'POST',
+                                body: JSON.stringify({})
+                            });
+                            this.showPasswordModal('密码重置成功', data.temp_password);
+                        } catch (e) {
+                            this.showToast(e.message, 'error');
+                        }
+                    });
+                },
+
+                // 删除用户
+                deleteUser(user) {
+                    this.confirm('删除用户', `确定要删除用户 "${user.username}" 吗？此操作不可恢复！`, 'danger', async () => {
+                        try {
+                            await this.api(`/api/users/${user.id}`, { method: 'DELETE' });
+                            this.showToast('删除成功', 'success');
+                            this.loadUsers();
+                        } catch (e) {
+                            this.showToast(e.message, 'error');
+                        }
+                    });
+                },
+
+                // 切换用户状态
+                async toggleUserStatus(user) {
+                    try {
+                        await this.api(`/api/users/${user.id}/status`, {
+                            method: 'PUT',
+                            body: JSON.stringify({ is_active: !user.is_active })
+                        });
+                        this.showToast(user.is_active ? '已禁用' : '已启用', 'success');
+                        this.loadUsers();
+                    } catch (e) {
+                        this.showToast(e.message, 'error');
+                    }
+                },
+
+                // 显示用户操作菜单 (移动端)
+                showUserActions(user) {
+                    this.selectedUser = user;
+                    this.mobileActionsMenu = true;
+                    this.$nextTick(() => lucide.createIcons());
+                },
+
+                // 日志选择
+                toggleSelectAllLogs() {
+                    if (this.selectAllLogs) {
+                        this.selectedLogs = this.logs.map(l => l.id);
+                    } else {
+                        this.selectedLogs = [];
+                    }
+                },
+
+                // 删除选中日志
+                deleteSelectedLogs() {
+                    if (this.selectedLogs.length === 0) return;
+
+                    this.confirm('删除日志', `确定要删除选中的 ${this.selectedLogs.length} 条日志吗？`, 'danger', async () => {
+                        try {
+                            await this.api('/api/users/logs', {
+                                method: 'DELETE',
+                                body: JSON.stringify({ log_ids: this.selectedLogs })
+                            });
+                            this.showToast('删除成功', 'success');
+                            this.loadLogs();
+                        } catch (e) {
+                            this.showToast(e.message, 'error');
+                        }
+                    });
+                },
+
+                // 清空日志
+                clearAllLogs() {
+                    this.confirm('清空日志', '确定要清空所有日志吗？此操作不可恢复！', 'danger', async () => {
+                        try {
+                            await this.api('/api/users/logs/all', { method: 'DELETE' });
+                            this.showToast('已清空所有日志', 'success');
+                            this.loadLogs();
+                        } catch (e) {
+                            this.showToast(e.message, 'error');
+                        }
+                    });
+                },
+
+                // 密码模态框
+                showPasswordModal(title, password) {
+                    this.passwordModalTitle = title;
+                    this.tempPassword = password;
+                    this.passwordModal = true;
+                    this.$nextTick(() => lucide.createIcons());
+                },
+
+                // 复制密码
+                copyPassword() {
+                    navigator.clipboard.writeText(this.tempPassword).then(() => {
+                        this.showToast('密码已复制到剪贴板', 'success');
+                    });
+                },
+
+                // Toast 通知
+                showToast(message, type = 'info') {
+                    const id = ++this.toastId;
+                    this.toasts.push({ id, message, type, show: true });
+                    this.$nextTick(() => lucide.createIcons());
+
+                    setTimeout(() => this.removeToast(id), 4000);
+                },
+
+                removeToast(id) {
+                    const toast = this.toasts.find(t => t.id === id);
+                    if (toast) toast.show = false;
+                    setTimeout(() => {
+                        this.toasts = this.toasts.filter(t => t.id !== id);
+                    }, 200);
+                },
+
+                // 确认对话框
+                confirm(title, message, type, onConfirm) {
+                    this.confirmDialog = { show: true, title, message, type, onConfirm };
+                    this.$nextTick(() => lucide.createIcons());
+                },
+
+                // 工具方法
+                getRoleName(role) {
+                    const names = { user: '普通用户', admin: '管理员', super_admin: '超级管理员' };
+                    return names[role] || role;
+                },
+
+                formatDate(dateStr) {
+                    return new Date(dateStr).toLocaleString('zh-CN', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>

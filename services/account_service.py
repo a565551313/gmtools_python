@@ -30,7 +30,7 @@ class AccountService(BaseService):
         
         data = {
             "玩家id": player_id,
-            "数值": amount
+            "数额": str(amount)
         }
         
         # 构建命令名称，例如 "充值仙玉"

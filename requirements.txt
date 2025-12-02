@@ -1,2 +1,9 @@
 PyQt6>=6.5.0
 msgpack>=1.0.0
+fastapi>=0.104.0
+uvicorn>=0.24.0
+pydantic>=2.0.0
+pydantic[email]
+PyJWT>=2.8.0
+bcrypt>=4.1.0
+python-multipart>=0.0.6

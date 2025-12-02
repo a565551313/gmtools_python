@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#6366f1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>GMTools 激活码管理</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {"50":"#eef2ff","100":"#e0e7ff","200":"#c7d2fe","300":"#a5b4fc","400":"#818cf8","500":"#6366f1","600":"#4f46e5","700":"#4338ca","800":"#3730a3","900":"#312e81"}
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        * { font-family: 'Inter', system-ui, sans-serif; }
+        [x-cloak] { display: none !important; }
+        
+        .gradient-bg { background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%); }
+        
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* 动画 */
+        .fade-in { animation: fadeIn 0.3s ease; }
+        .slide-up { animation: slideUp 0.3s ease; }
+        
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* 安全区域 */
+        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        .safe-top { padding-top: env(safe-area-inset-top); }
+    </style>
+</head>
+
+<body class="bg-gray-50 min-h-screen" x-data="app()" x-init="init()">
+
+    <!-- Toast 通知 -->
+    <div class="fixed top-4 right-4 z-[100] space-y-2 max-w-sm w-full px-4" x-cloak>
+        <template x-for="toast in toasts" :key="toast.id">
+            <div x-show="toast.show"
+                 x-transition:enter="transition ease-out duration-300"
+                 x-transition:enter-start="opacity-0 translate-x-8"
+                 x-transition:enter-end="opacity-100 translate-x-0"
+                 x-transition:leave="transition ease-in duration-200"
+                 x-transition:leave-start="opacity-100"
+                 x-transition:leave-end="opacity-0"
+                 :class="{
+                     'bg-emerald-500': toast.type === 'success',
+                     'bg-red-500': toast.type === 'error',
+                     'bg-blue-500': toast.type === 'info'
+                 }"
+                 class="flex items-center gap-3 px-4 py-3 rounded-2xl shadow-lg text-white">
+                <i :data-lucide="toast.type === 'success' ? 'check-circle-2' : toast.type === 'error' ? 'x-circle' : 'info'" class="w-5 h-5 flex-shrink-0"></i>
+                <span x-text="toast.message" class="flex-1 text-sm font-medium"></span>
+                <button @click="removeToast(toast.id)" class="p-1 hover:bg-white/20 rounded-full">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </template>
+    </div>
+
+    <!-- 加载遮罩 -->
+    <div x-show="loading" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">
+        <div class="flex flex-col items-center gap-4">
+            <div class="w-12 h-12 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin"></div>
+            <span class="text-gray-500 font-medium">加载中...</span>
+        </div>
+    </div>
+
+    <!-- 主容器 -->
+    <div class="min-h-screen flex flex-col">
+        
+        <!-- 头部导航 -->
+        <header class="gradient-bg text-white sticky top-0 z-40 safe-top">
+            <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex items-center justify-between h-16">
+                    <div class="flex items-center gap-3">
+                        <a href="/user-management" 
+                           class="p-2 hover:bg-white/10 rounded-xl transition">
+                            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+                        </a>
+                        <div>
+                            <h1 class="font-bold text-lg">激活码管理</h1>
+                            <p class="text-xs text-white/70 hidden sm:block">生成和管理用户等级激活码</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button @click="showGenerateModal = true"
+                                class="flex items-center gap-2 px-4 py-2 bg-white text-primary-600 hover:bg-white/90 rounded-xl transition text-sm font-bold shadow-lg">
+                            <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                            <span>生成激活码</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- 主内容区 -->
+        <main class="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">
+            
+            <!-- 筛选和搜索 -->
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6 mb-6 slide-up">
+                <div class="flex flex-col md:flex-row gap-4">
+                    <div class="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-bold text-gray-500 uppercase mb-2">等级筛选</label>
+                            <select x-model="filters.level"
+                                    @change="loadActivationCodes(1)"
+                                    class="w-full py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none">
+                                <option value="">全部等级</option>
+                                <template x-for="level in 10" :key="level">
+                                    <option :value="level" x-text="'Level ' + level"></option>
+                                </template>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-gray-500 uppercase mb-2">使用状态</label>
+                            <select x-model="filters.is_used"
+                                    @change="loadActivationCodes(1)"
+                                    class="w-full py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none">
+                                <option value="">全部状态</option>
+                                <option value="false">未使用</option>
+                                <option value="true">已使用</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-gray-500 uppercase mb-2">每页数量</label>
+                            <select x-model="filters.limit"
+                                    @change="loadActivationCodes(1)"
+                                    class="w-full py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none">
+                                <option value="10">10 条/页</option>
+                                <option value="20">20 条/页</option>
+                                <option value="50">50 条/页</option>
+                                <option value="100">100 条/页</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex items-end">
+                        <button @click="loadActivationCodes(1)"
+                                class="flex items-center gap-2 px-6 py-3 bg-primary-500 hover:bg-primary-600 text-white font-bold rounded-xl transition">
+                            <i data-lucide="refresh-ccw" class="w-4 h-4"></i>
+                            <span>刷新列表</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 激活码列表 -->
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden fade-in">
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead>
+                            <tr class="bg-gray-50 border-b border-gray-100">
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">激活码</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">等级</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">状态</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">使用用户</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">用户等级</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">使用时间</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">过期时间</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">创建时间</th>
+                                <th class="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="code in activationCodes" :key="code.id">
+                                <tr class="border-b border-gray-100 hover:bg-gray-50 transition">
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="flex items-center gap-2">
+                                            <code class="text-sm font-mono bg-gray-100 px-3 py-1 rounded-lg text-gray-700" x-text="code.code"></code>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="px-3 py-1 bg-primary-100 text-primary-600 rounded-full text-xs font-bold" x-text="'Level ' + code.level"></span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span :class="code.is_used ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'" 
+                                              class="px-3 py-1 rounded-full text-xs font-medium" 
+                                              x-text="code.is_used ? '已使用' : '未使用'"></span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600" x-text="code.used_username || code.used_by || '-'"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="px-3 py-1 bg-blue-100 text-blue-600 rounded-full text-xs font-bold" x-text="code.used_user_level ? 'Level ' + code.used_user_level : '-'" x-show="code.used_user_level"></span>
+                                        <span x-show="!code.used_user_level" class="text-sm text-gray-500">-</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="code.used_at || '-'"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="code.expires_at"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="code.created_at"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-right">
+                                        <button @click="deleteCode(code.code)"
+                                                class="p-2 text-red-500 hover:bg-red-50 rounded-xl transition">
+                                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </template>
+                            
+                            <!-- 空状态 -->
+                            <tr x-show="activationCodes.length === 0">
+                                <td colspan="8" class="px-6 py-12 text-center">
+                                    <div class="flex flex-col items-center gap-4">
+                                        <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
+                                            <i data-lucide="ticket" class="w-8 h-8 text-gray-400"></i>
+                                        </div>
+                                        <h3 class="text-lg font-medium text-gray-900">暂无激活码</h3>
+                                        <p class="text-sm text-gray-500">点击右上角按钮生成新的激活码</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- 分页 -->
+                <div x-show="totalPages > 1" 
+                     class="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
+                    <div class="text-sm text-gray-500">
+                        <span>共</span>
+                        <span class="font-bold text-gray-900 mx-1" x-text="totalCodes"></span>
+                        <span>条记录，当前第</span>
+                        <span class="font-bold text-gray-900 mx-1" x-text="currentPage"></span>
+                        <span>页，共</span>
+                        <span class="font-bold text-gray-900 mx-1" x-text="totalPages"></span>
+                        <span>页</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button @click="loadActivationCodes(currentPage - 1)" 
+                                :disabled="currentPage === 1"
+                                class="px-3 py-1.5 rounded-lg text-sm font-medium transition"
+                                :class="currentPage === 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'">
+                            <i data-lucide="chevron-left" class="w-4 h-4 inline-block mr-1"></i>
+                            上一页
+                        </button>
+                        <button @click="loadActivationCodes(currentPage + 1)" 
+                                :disabled="currentPage === totalPages"
+                                class="px-3 py-1.5 rounded-lg text-sm font-medium transition"
+                                :class="currentPage === totalPages ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'">
+                            下一页
+                            <i data-lucide="chevron-right" class="w-4 h-4 inline-block ml-1"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+    </div>
+
+    <!-- 生成激活码模态框 -->
+    <div x-show="showGenerateModal" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 overflow-hidden slide-up">
+            <div class="px-6 py-4 border-b border-gray-100">
+                <div class="flex items-center justify-between">
+                    <h2 class="font-bold text-lg text-gray-900">生成激活码</h2>
+                    <button @click="showGenerateModal = false"
+                            class="p-2 hover:bg-gray-100 rounded-full">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-bold text-gray-500 uppercase mb-2">设置等级</label>
+                    <select x-model="generateForm.level"
+                            class="w-full py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none">
+                        <template x-for="level in 10" :key="level">
+                            <option :value="level" x-text="'Level ' + level"></option>
+                        </template>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-gray-500 uppercase mb-2">生成数量</label>
+                    <input type="number" x-model="generateForm.count"
+                           min="1" max="100"
+                           class="w-full py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-gray-500 uppercase mb-2">有效期（天）</label>
+                    <input type="number" x-model="generateForm.expires_days"
+                           min="1" max="365"
+                           class="w-full py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none">
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3">
+                <button @click="showGenerateModal = false"
+                        class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition text-sm font-medium">
+                    取消
+                </button>
+                <button @click="generateCodes"
+                        class="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-xl transition text-sm font-bold">
+                    生成
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function app() {
+            return {
+                // 状态
+                loading: false,
+                showGenerateModal: false,
+                activationCodes: [],
+                currentPage: 1,
+                totalPages: 1,
+                totalCodes: 0,
+                
+                // 筛选条件
+                filters: {
+                    level: '',
+                    is_used: '',
+                    limit: 20
+                },
+                
+                // 生成激活码表单
+                generateForm: {
+                    level: 1,
+                    count: 1,
+                    expires_days: 30
+                },
+                
+                // Toast
+                toasts: [],
+                toastId: 0,
+
+                // 初始化
+                async init() {
+                    this.checkAuth();
+                    await this.loadActivationCodes();
+                    this.$nextTick(() => lucide.createIcons());
+                },
+
+                // 检查认证
+                checkAuth() {
+                    const token = localStorage.getItem('access_token');
+                    if (!token) {
+                        window.location.href = '/user-management';
+                    }
+                },
+
+                // 获取请求头
+                getHeaders() {
+                    const token = localStorage.getItem('access_token');
+                    return {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    };
+                },
+
+                // 加载激活码列表
+                async loadActivationCodes(page = 1) {
+                    this.loading = true;
+                    this.currentPage = page;
+                    try {
+                        let url = `/api/activation/list?page=${page}&limit=${this.filters.limit}`;
+                        if (this.filters.level) {
+                            url += `&level=${this.filters.level}`;
+                        }
+                        if (this.filters.is_used !== '') {
+                            url += `&is_used=${this.filters.is_used}`;
+                        }
+                        
+                        const res = await fetch(url, {
+                            headers: this.getHeaders()
+                        });
+                        if (!res.ok) throw new Error('加载激活码失败');
+                        const data = await res.json();
+                        
+                        this.activationCodes = data.data.codes;
+                        this.totalCodes = data.data.total;
+                        this.totalPages = Math.ceil(this.totalCodes / this.filters.limit);
+                        this.$nextTick(() => lucide.createIcons());
+                    } catch (err) {
+                        this.showToast(err.message, 'error');
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                // 生成激活码
+                async generateCodes() {
+                    this.loading = true;
+                    try {
+                        const res = await fetch('/api/activation/generate', {
+                            method: 'POST',
+                            headers: this.getHeaders(),
+                            body: JSON.stringify(this.generateForm)
+                        });
+                        
+                        if (!res.ok) {
+                            const errData = await res.json();
+                            throw new Error(errData.detail || '生成失败');
+                        }
+                        
+                        const data = await res.json();
+                        this.showToast(data.message, 'success');
+                        this.showGenerateModal = false;
+                        await this.loadActivationCodes();
+                        
+                        // 重置表单
+                        this.generateForm = {
+                            level: 1,
+                            count: 1,
+                            expires_days: 30
+                        };
+                    } catch (err) {
+                        this.showToast(err.message, 'error');
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                // 删除激活码
+                async deleteCode(code) {
+                    if (!confirm(`确定要删除激活码 ${code} 吗？`)) return;
+                    
+                    this.loading = true;
+                    try {
+                        const res = await fetch(`/api/activation/${code}`, {
+                            method: 'DELETE',
+                            headers: this.getHeaders()
+                        });
+                        
+                        if (!res.ok) {
+                            const errData = await res.json();
+                            throw new Error(errData.detail || '删除失败');
+                        }
+                        
+                        const data = await res.json();
+                        this.showToast(data.message, 'success');
+                        await this.loadActivationCodes();
+                    } catch (err) {
+                        this.showToast(err.message, 'error');
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                // Toast 通知
+                showToast(message, type = 'info') {
+                    const id = ++this.toastId;
+                    this.toasts.push({ id, message, type, show: true });
+                    this.$nextTick(() => lucide.createIcons());
+                    setTimeout(() => this.removeToast(id), 4000);
+                },
+
+                removeToast(id) {
+                    const toast = this.toasts.find(t => t.id === id);
+                    if (toast) toast.show = false;
+                    setTimeout(() => {
+                        this.toasts = this.toasts.filter(t => t.id !== id);
+                    }, 200);
+                }
+            }
+        }
+    </script>
+</body>
+</html>

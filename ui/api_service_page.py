@@ -108,27 +108,6 @@ class APIServicePage(QWidget):
         self.auto_start_check.setStyleSheet("color: #b9bbbe;")
         settings_layout.addWidget(self.auto_start_check)
         
-        # API Token
-        settings_layout.addWidget(QLabel("API Token:", styleSheet="color: #b9bbbe;"))
-        from PyQt6.QtWidgets import QLineEdit
-        self.token_edit = QLineEdit()
-        self.token_edit.setPlaceholderText("输入 API Token")
-        self.token_edit.setText(self.api_manager.token)
-        self.token_edit.setFixedSize(200, 30)
-        self.token_edit.setStyleSheet("""
-            QLineEdit {
-                color: white;
-                background-color: #202225;
-                border: 1px solid #202225;
-                border-radius: 4px;
-                padding: 2px 6px;
-            }
-            QLineEdit:focus {
-                border: 1px solid #5865F2;
-            }
-        """)
-        settings_layout.addWidget(self.token_edit)
-        
         # 保存按钮
         self.save_btn = QPushButton("保存配置")
         self.save_btn.setStyleSheet("""
@@ -216,6 +195,22 @@ class APIServicePage(QWidget):
         # 快捷链接
         control_layout.addStretch()
         
+        self.user_mgmt_btn = QPushButton("用户管理")
+        self.user_mgmt_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #5865F2;
+                color: white;
+                border-radius: 4px;
+                padding: 8px 15px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #4752C4;
+            }
+        """)
+        self.user_mgmt_btn.clicked.connect(self.open_user_management)
+        control_layout.addWidget(self.user_mgmt_btn)
+        
         self.docs_btn = QPushButton("打开 API 文档")
         self.docs_btn.setStyleSheet("""
             QPushButton {
@@ -287,8 +282,7 @@ class APIServicePage(QWidget):
         host = self.host_combo.currentText()
         port = self.port_spin.value()
         auto_start = self.auto_start_check.isChecked()
-        token = self.token_edit.text().strip()
-        self.api_manager.save_config(host, port, auto_start, token)
+        self.api_manager.save_config(host, port, auto_start)
         QMessageBox.information(self, "提示", "配置已保存")
         
     def on_service_started(self):
@@ -318,3 +312,11 @@ class APIServicePage(QWidget):
     def open_tester(self):
         url = f"http://{self.api_manager.host}:{self.api_manager.port}/docs-custom"
         QDesktopServices.openUrl(QUrl(url))
+    
+    def open_user_management(self):
+        """打开用户管理页面"""
+        if not self.api_manager.is_running():
+            QMessageBox.warning(self, "提示", "请先启动 API 服务")
+            return
+        self.api_manager.open_user_management()
+

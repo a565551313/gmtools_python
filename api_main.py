@@ -8,19 +8,10 @@ GMTools API 服务入口
 import sys
 import os
 import asyncio
+from contextlib import asynccontextmanager
 import argparse
 import logging
-from typing import Optional, Dict, Any
-from contextlib import asynccontextmanager
-
-from fastapi import FastAPI, HTTPException, Depends, Body, Request
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-from pydantic import BaseModel
 import uvicorn
-
-# 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from network.client import GMToolsClient
@@ -30,6 +21,8 @@ from services.equipment_service import EquipmentService
 from services.gift_service import GiftService
 from services.character_service import CharacterService
 from services.game_service import GameService
+from database.activation_code import ActivationCode
+from database.permissions import Permission, LevelPermission
 from api_examples import (
     ACCOUNT_EXAMPLES, PET_EXAMPLES, EQUIPMENT_EXAMPLES, 
     GIFT_EXAMPLES, CHARACTER_EXAMPLES, GAME_EXAMPLES
@@ -37,6 +30,11 @@ from api_examples import (
 from config.settings import SERVER_HOST, SERVER_PORT, GM_ACCOUNT, GM_PASSWORD
 
 # 配置日志
+from typing import Optional, Dict, Any
+from fastapi import FastAPI, Request, HTTPException, Depends, Body
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -54,15 +52,10 @@ gift_service: Optional[GiftService] = None
 character_service: Optional[CharacterService] = None
 game_service: Optional[GameService] = None
 
-# Token authentication
-security = HTTPBearer()
-from config.settings import AUTH_TOKEN
-
-def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    """验证 Bearer Token"""
-    if credentials.scheme.lower() != "bearer" or credentials.credentials != AUTH_TOKEN:
-        raise HTTPException(status_code=403, detail="Invalid authentication token")
-    return True
+# 导入新的认证依赖
+from auth.dependencies import get_current_active_user
+from auth.level_permissions import require_level
+from database.models import User as AuthUser, AuditLog
 
 # 通用请求模型
 class ModuleRequest(BaseModel):
@@ -160,8 +153,15 @@ async def lifespan(app: FastAPI):
     global client, account_service, pet_service, equipment_service, gift_service, character_service, game_service
     
     # --- 启动逻辑 ---
+    # 初始化数据库
+    from database.connection import db as database
+    logger.info("正在初始化数据库...")
+    database.init_database()
+    logger.info("数据库初始化完成")
+    
     # 确保 dispatcher 获取到正确的 loop
     dispatcher.loop = asyncio.get_running_loop()
+
     
     logger.info("正在初始化 GMTools API 服务...")
     
@@ -250,7 +250,23 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# CORS middleware
+from fastapi.middleware.cors import CORSMiddleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# 注册用户管理路由
+from routes.user_routes import router as user_router
+app.include_router(user_router)
+
 @app.middleware("http")
+
 async def log_requests(request: Request, call_next):
     """记录所有请求的中间件"""
     import time
@@ -280,6 +296,26 @@ async def root():
 async def custom_docs():
     """自定义 API 测试页面"""
     return FileResponse(os.path.join(static_dir, "api_tester.html"))
+
+@app.get("/user-management")
+async def user_management():
+    """用户管理页面"""
+    return FileResponse(os.path.join(static_dir, "user-management.html"))
+
+@app.get("/user-functions")
+async def user_functions():
+    """用户功能系统页面"""
+    return FileResponse(os.path.join(static_dir, "user-functions.html"))
+
+@app.get("/level-permissions")
+async def level_permissions():
+    """权限配置页面"""
+    return FileResponse(os.path.join(static_dir, "level-permissions.html"))
+
+@app.get("/activation-codes")
+async def activation_codes():
+    """激活码管理页面"""
+    return FileResponse(os.path.join(static_dir, "activation-codes.html"))
 
 async def handle_service_request(service, request: ModuleRequest):
     """通用服务请求处理"""
@@ -314,53 +350,389 @@ async def handle_service_request(service, request: ModuleRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# 注册权限管理路由
+from routes.permission_routes import router as permission_router
+app.include_router(permission_router)
+
+# 导入权限检查
+from auth.permission_checker import require_permission, has_permission
+
+# 功能权限映射表
+FUNCTION_PERMISSIONS = {
+    # 账号模块
+    "account": {
+        "recharge_currency": "recharge.currency",
+        "send_travel_fee": "account.send_travel_fee",
+        "recharge_gm_level": "recharge.gm_level",
+        "manage_account": "account.ban",
+        "change_password": "account.change_password",
+        "give_title": "account.give_title",
+        "recharge_skill": "recharge.crafting_skill",
+        "recharge_faction": "recharge.faction_contribution",
+        "recharge_gm_coin": "recharge.gm_coin",
+        "recharge_record": "account.player_info",
+        "set_bagua": "recharge.bagua",
+    },
+    # 宠物模块
+    "pet": {
+        "get_pet_info": "pet.get_info",
+        "modify_pet": "pet.modify",
+        "custom_pet_equip": "pet.custom_equip",
+        "get_mount": "pet.get_mount",
+        "modify_mount": "pet.modify_mount",
+    },
+    # 装备模块
+    "equipment": {
+        "get_equipment": "equipment.custom",
+        "send_equipment": "equipment.custom",
+        "get_ornament": "equipment.ornament",
+        "send_ornament": "equipment.ornament",
+        "get_pet_equipment": "equipment.custom",
+        "send_pet_equipment": "equipment.custom",
+        "get_affix": "equipment.affix",
+        "send_affix": "equipment.affix",
+    },
+    # 礼物模块
+    "gift": {
+        "give_item": "gift.give_item",
+        "give_gem": "gift.give_gem",
+        "get_recharge_types": "gift.get_recharge_types",
+        "get_recharge_card": "gift.get_recharge_cards",
+        "generate_cdk": "gift.generate_cdk",
+        "generate_custom_cdk": "gift.generate_custom_cdk",
+        "new_recharge_type": "gift.new_recharge_type",
+        "del_recharge_type": "gift.del_recharge_type",
+    },
+    # 角色模块
+    "character": {
+        "get_character_info": "character.get_info",
+        "recover_character_props": "character.recover_props",
+        "modify_character": "character.modify",
+    },
+    # 游戏模块
+    "game": {
+        "send_broadcast": "game.broadcast",
+        "send_announcement": "game.announcement",
+        "set_exp_rate": "game.exp_rate",
+        "set_difficulty": "game.difficulty",
+        "set_level_cap": "game.level_cap",
+        "trigger_activity": "game.activity",
+    }
+}
+
+def check_function_permission(user: AuthUser, module: str, function: str):
+    """检查用户是否有执行特定功能的权限"""
+    # 获取该功能需要的权限
+    module_perms = FUNCTION_PERMISSIONS.get(module, {})
+    required_perm = module_perms.get(function)
+    
+    # 如果没有明确定义权限，则默认需要该模块的查看权限或基础权限
+    if not required_perm:
+        # 尝试使用模块名作为权限前缀
+        if module == "account":
+            required_perm = "account.view"
+        elif module == "pet":
+            required_perm = "pet.modify"
+        elif module == "equipment":
+            required_perm = "equipment.modify"
+        elif module == "gift":
+            required_perm = "gift.send"
+        elif module == "character":
+            required_perm = "character.view"
+        elif module == "game":
+            required_perm = "game.config"
+        else:
+            required_perm = f"{module}.view"
+            
+    if not has_permission(user, required_perm):
+        logger.warning(f"用户 {user.username} (Level {user.level}) 尝试执行 {module}.{function} 被拒绝 (需要 {required_perm})")
+        raise HTTPException(
+            status_code=403,
+            detail=f"权限不足: 需要 {required_perm}"
+        )
+
 @app.post("/api/account")
 async def account_endpoint(
-    request: ModuleRequest = Body(..., examples=ACCOUNT_EXAMPLES),
-    token: bool = Depends(verify_token)
+    request_data: ModuleRequest = Body(..., examples=ACCOUNT_EXAMPLES),
+    http_request: Request = None,
+    current_user: AuthUser = Depends(get_current_active_user)
 ):
-    """账号模块统一接口"""
-    return await handle_service_request(account_service, request)
+    """
+    账号模块统一接口
+    """
+    check_function_permission(current_user, "account", request_data.function)
+    
+    # 记录操作日志
+    AuditLog.create(
+        user_id=current_user.id,
+        action="ACCOUNT_OPERATION",
+        resource="account",
+        details=f"{current_user.username} 执行 {request_data.function}",
+        ip_address=http_request.client.host if http_request and http_request.client else None
+    )
+    return await handle_service_request(account_service, request_data)
 
 @app.post("/api/pet")
 async def pet_endpoint(
-    request: ModuleRequest = Body(..., examples=PET_EXAMPLES),
-    token: bool = Depends(verify_token)
+    request_data: ModuleRequest = Body(..., examples=PET_EXAMPLES),
+    http_request: Request = None,
+    current_user: AuthUser = Depends(get_current_active_user)
 ):
-    """宝宝模块统一接口"""
-    return await handle_service_request(pet_service, request)
+    """
+    宝宝模块统一接口
+    """
+    check_function_permission(current_user, "pet", request_data.function)
+    
+    AuditLog.create(
+        user_id=current_user.id,
+        action="PET_OPERATION",
+        resource="pet",
+        details=f"{current_user.username} 执行 {request_data.function}",
+        ip_address=http_request.client.host if http_request and http_request.client else None
+    )
+    return await handle_service_request(pet_service, request_data)
 
 @app.post("/api/equipment")
 async def equipment_endpoint(
-    request: ModuleRequest = Body(..., examples=EQUIPMENT_EXAMPLES),
-    token: bool = Depends(verify_token)
+    request_data: ModuleRequest = Body(..., examples=EQUIPMENT_EXAMPLES),
+    http_request: Request = None,
+    current_user: AuthUser = Depends(get_current_active_user)
 ):
-    """装备模块统一接口"""
-    return await handle_service_request(equipment_service, request)
+    """
+    装备模块统一接口
+    """
+    check_function_permission(current_user, "equipment", request_data.function)
+    
+    AuditLog.create(
+        user_id=current_user.id,
+        action="EQUIPMENT_OPERATION",
+        resource="equipment",
+        details=f"{current_user.username} 执行 {request_data.function}",
+        ip_address=http_request.client.host if http_request and http_request.client else None
+    )
+    return await handle_service_request(equipment_service, request_data)
 
 @app.post("/api/gift")
 async def gift_endpoint(
-    request: ModuleRequest = Body(..., examples=GIFT_EXAMPLES),
-    token: bool = Depends(verify_token)
+    request_data: ModuleRequest = Body(..., examples=GIFT_EXAMPLES),
+    http_request: Request = None,
+    current_user: AuthUser = Depends(get_current_active_user)
 ):
-    """物品赠送模块统一接口"""
-    return await handle_service_request(gift_service, request)
+    """
+    物品赠送模块统一接口
+    """
+    check_function_permission(current_user, "gift", request_data.function)
+    
+    AuditLog.create(
+        user_id=current_user.id,
+        action="GIFT_OPERATION",
+        resource="gift",
+        details=f"{current_user.username} 执行 {request_data.function}",
+        ip_address=http_request.client.host if http_request and http_request.client else None
+    )
+    return await handle_service_request(gift_service, request_data)
 
 @app.post("/api/character")
 async def character_endpoint(
-    request: ModuleRequest = Body(..., examples=CHARACTER_EXAMPLES),
-    token: bool = Depends(verify_token)
+    request_data: ModuleRequest = Body(..., examples=CHARACTER_EXAMPLES),
+    http_request: Request = None,
+    current_user: AuthUser = Depends(get_current_active_user)
 ):
-    """角色管理模块统一接口"""
-    return await handle_service_request(character_service, request)
+    """
+    角色管理模块统一接口
+    """
+    check_function_permission(current_user, "character", request_data.function)
+    
+    AuditLog.create(
+        user_id=current_user.id,
+        action="CHARACTER_OPERATION",
+        resource="character",
+        details=f"{current_user.username} 执行 {request_data.function}",
+        ip_address=http_request.client.host if http_request and http_request.client else None
+    )
+    return await handle_service_request(character_service, request_data)
 
 @app.post("/api/game")
 async def game_endpoint(
-    request: ModuleRequest = Body(..., examples=GAME_EXAMPLES),
-    token: bool = Depends(verify_token)
+    request_data: ModuleRequest = Body(..., examples=GAME_EXAMPLES),
+    http_request: Request = None,
+    current_user: AuthUser = Depends(get_current_active_user)
 ):
-    """游戏管理模块统一接口"""
-    return await handle_service_request(game_service, request)
+    """
+    游戏模块统一接口
+    """
+    check_function_permission(current_user, "game", request_data.function)
+    
+    # 记录操作日志
+    AuditLog.create(
+        user_id=current_user.id,
+        action="GAME_OPERATION",
+        resource="game",
+        details=f"{current_user.username} 执行 {request_data.function}",
+        ip_address=http_request.client.host if http_request and http_request.client else None
+    )
+    return await handle_service_request(game_service, request_data)
+
+
+@app.post("/api/activation/generate")
+async def generate_activation_codes(
+    level: int = Body(..., embed=True),
+    count: int = Body(default=1, embed=True),
+    expires_days: int = Body(default=30, embed=True),
+    current_user: AuthUser = Depends(get_current_active_user)
+):
+    """
+    生成激活码
+    """
+    # 只有管理员和超级管理员可以生成激活码
+    if current_user.role not in ["admin", "super_admin"]:
+        raise HTTPException(status_code=403, detail="权限不足")
+    
+    codes = ActivationCode.create(level, expires_days, count)
+    return {
+        "status": "success",
+        "data": [code.to_dict() for code in codes],
+        "message": f"成功生成 {count} 个激活码"
+    }
+
+
+@app.get("/api/activation/list")
+async def get_activation_codes(
+    page: int = 1,
+    limit: int = 20,
+    level: int = None,
+    is_used: bool = None,
+    current_user: AuthUser = Depends(get_current_active_user)
+):
+    """
+    获取激活码列表
+    """
+    # 只有管理员和超级管理员可以查看激活码列表
+    if current_user.role not in ["admin", "super_admin"]:
+        raise HTTPException(status_code=403, detail="权限不足")
+    
+    offset = (page - 1) * limit
+    codes = ActivationCode.get_all(limit, offset)
+    
+    # 过滤条件
+    if level is not None:
+        codes = [code for code in codes if code.level == level]
+    if is_used is not None:
+        codes = [code for code in codes if code.is_used == is_used]
+    
+    # 为每个激活码添加用户名和权限等级信息
+    codes_with_user_info = []
+    for code in codes:
+        code_dict = code.to_dict()
+        if code.is_used and code.used_by:
+            # 查询使用该激活码的用户信息
+            user = AuthUser.get_by_id(code.used_by)
+            if user:
+                code_dict["used_username"] = user.username
+                code_dict["used_user_level"] = user.level
+            else:
+                code_dict["used_username"] = "未知用户"
+                code_dict["used_user_level"] = 0
+        else:
+            code_dict["used_username"] = None
+            code_dict["used_user_level"] = None
+        codes_with_user_info.append(code_dict)
+    
+    total = ActivationCode.count()
+    return {
+        "status": "success",
+        "data": {
+            "codes": codes_with_user_info,
+            "total": total,
+            "page": page,
+            "limit": limit
+        }
+    }
+
+
+@app.post("/api/activation/use")
+async def use_activation_code(
+    code: str = Body(..., embed=True),
+    current_user: AuthUser = Depends(get_current_active_user)
+):
+    """
+    使用激活码
+    """
+    # 禁止管理员使用激活码，避免权限被意外降低
+    if current_user.role in ["admin", "super_admin"]:
+        raise HTTPException(status_code=403, detail="管理员无需使用激活码")
+    
+    new_level = ActivationCode.activate(code, current_user.id)
+    
+    if new_level is None:
+        raise HTTPException(status_code=400, detail="激活码无效或已过期")
+    
+    # 更新用户等级
+    user = User.get_by_id(current_user.id)
+    if user:
+        user.level = new_level
+        user.update()
+    
+    return {
+        "status": "success",
+        "message": f"激活成功，您的等级已提升至 {new_level}",
+        "data": {"new_level": new_level}
+    }
+
+
+@app.delete("/api/activation/{code}")
+async def delete_activation_code(
+    code: str,
+    current_user: AuthUser = Depends(get_current_active_user)
+):
+    """
+    删除激活码
+    """
+    # 只有管理员和超级管理员可以删除激活码
+    if current_user.role not in ["admin", "super_admin"]:
+        raise HTTPException(status_code=403, detail="权限不足")
+    
+    success = ActivationCode.delete(code)
+    if not success:
+        raise HTTPException(status_code=400, detail="删除失败")
+    
+    return {
+        "status": "success",
+        "message": "激活码删除成功"
+    }
+
+
+@app.get("/api/permissions/all")
+async def get_all_permissions(
+    current_user: AuthUser = Depends(get_current_active_user)
+):
+    """
+    获取所有权限列表
+    """
+    permissions = Permission.get_all()
+    return {
+        "status": "success",
+        "data": [perm.to_dict() for perm in permissions]
+    }
+
+
+@app.get("/api/permissions/level/{level}")
+async def get_level_permissions(
+    level: int,
+    current_user: AuthUser = Depends(get_current_active_user)
+):
+    """
+    获取指定level的权限
+    """
+    # 验证level范围
+    if level < 1 or level > 10:
+        raise HTTPException(status_code=400, detail="level必须在1-10之间")
+    
+    permissions = LevelPermission.get_level_permissions(level)
+    return {
+        "status": "success",
+        "data": permissions
+    }
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="GMTools API Service")

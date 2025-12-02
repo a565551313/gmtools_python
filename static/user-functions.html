@@ -1,0 +1,2112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#6366f1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>GMTools 功能系统</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {"50":"#eef2ff","100":"#e0e7ff","200":"#c7d2fe","300":"#a5b4fc","400":"#818cf8","500":"#6366f1","600":"#4f46e5","700":"#4338ca","800":"#3730a3","900":"#312e81"}
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        * { font-family: 'Inter', system-ui, sans-serif; }
+        [x-cloak] { display: none !important; }
+        
+        .gradient-bg { background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%); }
+        .glass { background: rgba(255,255,255,0.9); backdrop-filter: blur(20px); }
+        
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* 动画 */
+        .fade-in { animation: fadeIn 0.3s ease; }
+        .slide-up { animation: slideUp 0.3s ease; }
+        .slide-in-right { animation: slideInRight 0.3s ease; }
+        
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideInRight { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+        
+        /* 控制台样式 */
+        .console-bg { background: #0f172a; }
+        .console-text { color: #e2e8f0; }
+        
+        /* 安全区域 */
+        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        .safe-top { padding-top: env(safe-area-inset-top); }
+    </style>
+</head>
+
+<body class="bg-gray-50 min-h-screen" x-data="app()" x-init="init()">
+
+    <!-- Toast 通知 -->
+    <div class="fixed top-4 right-4 z-[100] space-y-2 max-w-sm w-full px-4" x-cloak>
+        <template x-for="toast in toasts" :key="toast.id">
+            <div x-show="toast.show"
+                 x-transition:enter="transition ease-out duration-300"
+                 x-transition:enter-start="opacity-0 translate-x-8"
+                 x-transition:enter-end="opacity-100 translate-x-0"
+                 x-transition:leave="transition ease-in duration-200"
+                 x-transition:leave-start="opacity-100"
+                 x-transition:leave-end="opacity-0"
+                 :class="{
+                     'bg-emerald-500': toast.type === 'success',
+                     'bg-red-500': toast.type === 'error',
+                     'bg-blue-500': toast.type === 'info',
+                     'bg-amber-500': toast.type === 'warning'
+                 }"
+                 class="flex items-center gap-3 px-4 py-3 rounded-2xl shadow-lg text-white">
+                <i :data-lucide="toast.type === 'success' ? 'check-circle-2' : toast.type === 'error' ? 'x-circle' : 'info'" class="w-5 h-5 flex-shrink-0"></i>
+                <span x-text="toast.message" class="flex-1 text-sm font-medium"></span>
+                <button @click="removeToast(toast.id)" class="p-1 hover:bg-white/20 rounded-full">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </template>
+    </div>
+
+    <!-- 登录页面 -->
+    <div x-show="!isLoggedIn" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 gradient-bg">
+        <div class="w-full max-w-md">
+            <div class="bg-white rounded-3xl shadow-2xl overflow-hidden slide-up">
+                <!-- 登录头部 -->
+                <div class="px-8 pt-10 pb-8 text-center">
+                    <div class="w-20 h-20 bg-gradient-to-br from-primary-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-primary-500/30">
+                        <i data-lucide="gamepad-2" class="w-10 h-10 text-white"></i>
+                    </div>
+                    <h1 class="text-2xl font-bold text-gray-900 mb-2">GMTools</h1>
+                    <p class="text-gray-500">用户功能管理系统</p>
+                </div>
+                
+                <!-- 登录表单 -->
+                <div class="px-8 pb-10">
+                    <form @submit.prevent="login()" class="space-y-5">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">用户名</label>
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                    <i data-lucide="user" class="w-5 h-5 text-gray-400"></i>
+                                </div>
+                                <input type="text" x-model="loginForm.username" required
+                                       class="w-full pl-12 pr-4 py-3.5 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 focus:bg-white transition outline-none"
+                                       placeholder="请输入用户名">
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">密码</label>
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                    <i data-lucide="lock" class="w-5 h-5 text-gray-400"></i>
+                                </div>
+                                <input :type="showPassword ? 'text' : 'password'" x-model="loginForm.password" required
+                                       class="w-full pl-12 pr-12 py-3.5 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 focus:bg-white transition outline-none"
+                                       placeholder="请输入密码">
+                                <button type="button" @click="showPassword = !showPassword"
+                                        class="absolute inset-y-0 right-0 pr-4 flex items-center">
+                                    <i :data-lucide="showPassword ? 'eye-off' : 'eye'" class="w-5 h-5 text-gray-400 hover:text-gray-600"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" :disabled="loading"
+                                class="w-full py-4 bg-gradient-to-r from-primary-500 to-purple-600 text-white font-bold rounded-xl shadow-lg shadow-primary-500/30 hover:shadow-xl hover:shadow-primary-500/40 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                            <i data-lucide="loader-2" class="w-5 h-5 animate-spin" x-show="loading"></i>
+                            <span x-text="loading ? '登录中...' : '登录'"></span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主界面 -->
+    <div x-show="isLoggedIn" x-cloak class="flex flex-col lg:flex-row min-h-screen">
+        
+        <!-- 移动端头部 -->
+        <header class="lg:hidden gradient-bg text-white p-4 flex items-center justify-between safe-top sticky top-0 z-40">
+            <div class="flex items-center gap-3">
+                <button @click="mobileMenuOpen = true" class="p-2 hover:bg-white/10 rounded-xl">
+                    <i data-lucide="menu" class="w-6 h-6"></i>
+                </button>
+                <div>
+                    <h1 class="font-bold" x-text="modules[currentModule]?.name"></h1>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="text-sm text-white/70" x-text="currentUser?.username"></span>
+                <button @click="showConsole = !showConsole" class="p-2 hover:bg-white/10 rounded-xl">
+                    <i data-lucide="terminal" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- 移动端侧边栏遮罩 -->
+        <div x-show="mobileMenuOpen" x-cloak
+             @click="mobileMenuOpen = false"
+             class="lg:hidden fixed inset-0 bg-black/50 z-50 backdrop-blur-sm"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0">
+        </div>
+
+        <!-- 侧边栏 -->
+        <aside :class="mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
+               class="fixed lg:sticky top-0 left-0 h-screen w-72 bg-white border-r border-gray-100 flex flex-col z-50 transition-transform duration-300 shadow-2xl lg:shadow-none">
+            
+            <!-- Logo -->
+            <div class="h-16 flex items-center gap-3 px-6 gradient-bg text-white">
+                <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                    <i data-lucide="gamepad-2" class="w-6 h-6"></i>
+                </div>
+                <div class="flex-1">
+                    <h1 class="font-bold">GMTools</h1>
+                    <p class="text-xs text-white/70">功能管理系统</p>
+                </div>
+                <button @click="mobileMenuOpen = false" class="lg:hidden p-2 hover:bg-white/10 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            
+            <!-- 导航菜单 -->
+            <nav class="flex-1 overflow-y-auto py-4 px-3">
+                <div class="space-y-1">
+                    <template x-for="(module, key) in modules" :key="key">
+                        <button @click="currentModule = key; mobileMenuOpen = false"
+                                :class="currentModule === key 
+                                    ? 'bg-primary-50 text-primary-600 border-primary-200' 
+                                    : 'text-gray-600 hover:bg-gray-50 border-transparent'"
+                                class="w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all font-medium">
+                            <i :data-lucide="module.icon" class="w-5 h-5"></i>
+                            <span x-text="module.name"></span>
+                            <i data-lucide="chevron-right" class="w-4 h-4 ml-auto opacity-50" x-show="currentModule === key"></i>
+                        </button>
+                    </template>
+                </div>
+            </nav>
+            
+            <!-- 用户信息 -->
+            <div class="p-4 border-t border-gray-100">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="w-10 h-10 bg-gradient-to-br from-primary-400 to-purple-500 rounded-xl flex items-center justify-center text-white font-bold">
+                        <span x-text="currentUser?.username?.charAt(0).toUpperCase()"></span>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="font-medium text-gray-900 truncate" x-text="currentUser?.username"></p>
+                        <p class="text-xs text-gray-500">在线</p>
+                    </div>
+                </div>
+                <button @click="logout()"
+                        class="w-full flex items-center justify-center gap-2 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl font-medium transition">
+                    <i data-lucide="log-out" class="w-4 h-4"></i>
+                    退出登录
+                </button>
+            </div>
+        </aside>
+
+        <!-- 主内容区 -->
+        <main class="flex-1 flex flex-col min-w-0 lg:max-h-screen lg:overflow-hidden">
+            
+            <!-- 桌面端头部 -->
+            <header class="hidden lg:flex h-16 bg-white border-b border-gray-100 items-center justify-between px-6">
+                <div class="flex items-center gap-4">
+                    <h2 class="text-xl font-bold text-gray-900" x-text="modules[currentModule]?.name"></h2>
+                    <span class="px-3 py-1 bg-primary-50 text-primary-600 text-xs font-medium rounded-full" x-text="modules[currentModule]?.description || ''"></span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button @click="showConsole = !showConsole"
+                            :class="showConsole ? 'bg-primary-100 text-primary-600' : 'bg-gray-100 text-gray-600'"
+                            class="flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition">
+                        <i data-lucide="terminal" class="w-4 h-4"></i>
+                        控制台
+                    </button>
+                </div>
+            </header>
+
+            <!-- 内容区域 -->
+            <div class="flex-1 flex overflow-hidden">
+                <!-- 主内容 -->
+                <div class="flex-1 overflow-y-auto p-4 lg:p-6">
+                    
+                    <!-- 角色ID输入条 (全局) -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-6">
+                        <div class="flex flex-col sm:flex-row gap-4">
+                            <div class="flex-1">
+                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">当前操作角色</label>
+                                <div class="relative">
+                                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                        <i data-lucide="user-circle" class="w-5 h-5 text-gray-400"></i>
+                                    </div>
+                                    <input type="text" x-model="forms.account.player_id"
+                                           @blur="addPlayerIdToHistory"
+                                           class="w-full pl-12 pr-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 focus:bg-white transition outline-none"
+                                           placeholder="请输入角色ID">
+                                </div>
+                            </div>
+                            <div class="sm:w-48" x-show="playerIdHistory.length > 0">
+                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">历史记录</label>
+                                <select x-model="selectedPlayerIdHistory" 
+                                        @change="selectPlayerIdFromHistory"
+                                        class="w-full py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none appearance-none">
+                                    <option value="">选择历史ID</option>
+                                    <template x-for="(id, idx) in playerIdHistory" :key="idx">
+                                        <option :value="id" x-text="id"></option>
+                                    </template>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 账号管理 -->
+                    <div x-show="currentModule === 'account'" class="space-y-6 fade-in">
+                        <!-- 基础信息 -->
+                        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                            <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
+                                <div class="w-10 h-10 bg-primary-100 rounded-xl flex items-center justify-center">
+                                    <i data-lucide="user" class="w-5 h-5 text-primary-600"></i>
+                                </div>
+                                <h3 class="font-bold text-gray-900">基础信息</h3>
+                            </div>
+                            <div class="p-6">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">账号</label>
+                                        <input type="text" x-model="forms.account.account"
+                                               class="w-full py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none"
+                                               placeholder="输入账号">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">新密码</label>
+                                        <input type="text" x-model="forms.account.password"
+                                               class="w-full py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none"
+                                               placeholder="输入新密码">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">称谓</label>
+                                        <input type="text" x-model="forms.account.title"
+                                               class="w-full py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none"
+                                               placeholder="输入称谓">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 账号操作 -->
+                        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                            <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
+                                <div class="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
+                                    <i data-lucide="settings" class="w-5 h-5 text-amber-600"></i>
+                                </div>
+                                <h3 class="font-bold text-gray-900">账号操作</h3>
+                            </div>
+                            <div class="p-6">
+                                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                                    <button @click="runAccountCmd('玩家信息', 'player_id')" x-if="hasPermission('account.player_info')"
+                                            class="flex flex-col items-center gap-2 p-4 bg-gray-50 hover:bg-primary-50 hover:border-primary-200 border-2 border-gray-100 rounded-xl transition group">
+                                        <i data-lucide="info" class="w-6 h-6 text-gray-400 group-hover:text-primary-500"></i>
+                                        <span class="text-sm font-medium text-gray-700 group-hover:text-primary-600">玩家信息</span>
+                                    </button>
+                                    <button @click="runAccountCmd('踢出战斗', 'player_id')" x-if="hasPermission('account.kick_battle')"
+                                            class="flex flex-col items-center gap-2 p-4 bg-gray-50 hover:bg-yellow-50 hover:border-yellow-200 border-2 border-gray-100 rounded-xl transition group">
+                                        <i data-lucide="swords" class="w-6 h-6 text-gray-400 group-hover:text-yellow-500"></i>
+                                        <span class="text-sm font-medium text-gray-700 group-hover:text-yellow-600">踢出战斗</span>
+                                    </button>
+                                    <button @click="runAccountCmd('强制下线', 'player_id')" x-if="hasPermission('account.force_logout')"
+                                            class="flex flex-col items-center gap-2 p-4 bg-gray-50 hover:bg-orange-50 hover:border-orange-200 border-2 border-gray-100 rounded-xl transition group">
+                                        <i data-lucide="power" class="w-6 h-6 text-gray-400 group-hover:text-orange-500"></i>
+                                        <span class="text-sm font-medium text-gray-700 group-hover:text-orange-600">强制下线</span>
+                                    </button>
+                                    <button @click="runAccountCmd('封禁账号', 'account')" x-if="hasPermission('account.ban')"
+                                            class="flex flex-col items-center gap-2 p-4 bg-red-50 hover:bg-red-100 border-2 border-red-100 rounded-xl transition group">
+                                        <i data-lucide="ban" class="w-6 h-6 text-red-400 group-hover:text-red-500"></i>
+                                        <span class="text-sm font-medium text-red-600">封禁账号</span>
+                                    </button>
+                                    <button @click="runAccountCmd('解封账号', 'account')" x-if="hasPermission('account.unban')"
+                                            class="flex flex-col items-center gap-2 p-4 bg-green-50 hover:bg-green-100 border-2 border-green-100 rounded-xl transition group">
+                                        <i data-lucide="check-circle" class="w-6 h-6 text-green-400 group-hover:text-green-500"></i>
+                                        <span class="text-sm font-medium text-green-600">解封账号</span>
+                                    </button>
+                                    <button @click="runAccountCmd('修改密码', 'account', true)" x-if="hasPermission('account.change_password')"
+                                            class="flex flex-col items-center gap-2 p-4 bg-gray-50 hover:bg-blue-50 hover:border-blue-200 border-2 border-gray-100 rounded-xl transition group">
+                                        <i data-lucide="key" class="w-6 h-6 text-gray-400 group-hover:text-blue-500"></i>
+                                        <span class="text-sm font-medium text-gray-700 group-hover:text-blue-600">修改密码</span>
+                                    </button>
+                                    <button @click="runAccountCmd('给予称谓', 'player_id', true)" x-if="hasPermission('account.give_title')"
+                                            class="flex flex-col items-center gap-2 p-4 bg-gray-50 hover:bg-purple-50 hover:border-purple-200 border-2 border-gray-100 rounded-xl transition group">
+                                        <i data-lucide="award" class="w-6 h-6 text-gray-400 group-hover:text-purple-500"></i>
+                                        <span class="text-sm font-medium text-gray-700 group-hover:text-purple-600">给予称谓</span>
+                                    </button>
+                                    <button @click="sendTravelFee()" x-if="hasPermission('account.send_travel_fee')"
+                                            class="flex flex-col items-center gap-2 p-4 bg-gray-50 hover:bg-cyan-50 hover:border-cyan-200 border-2 border-gray-100 rounded-xl transition group">
+                                        <i data-lucide="send" class="w-6 h-6 text-gray-400 group-hover:text-cyan-500"></i>
+                                        <span class="text-sm font-medium text-gray-700 group-hover:text-cyan-600">发送路费</span>
+                                    </button>
+                                    <button @click="runAccountCmd('开通管理', 'account')" x-if="hasPermission('account.open_management')"
+                                            class="flex flex-col items-center gap-2 p-4 bg-gray-50 hover:bg-indigo-50 hover:border-indigo-200 border-2 border-gray-100 rounded-xl transition group">
+                                        <i data-lucide="shield-plus" class="w-6 h-6 text-gray-400 group-hover:text-indigo-500"></i>
+                                        <span class="text-sm font-medium text-gray-700 group-hover:text-indigo-600">开通管理</span>
+                                    </button>
+                                    <button @click="runAccountCmd('关闭管理', 'account')" x-if="hasPermission('account.close_management')"
+                                            class="flex flex-col items-center gap-2 p-4 bg-gray-50 hover:bg-slate-100 hover:border-slate-200 border-2 border-gray-100 rounded-xl transition group">
+                                        <i data-lucide="shield-off" class="w-6 h-6 text-gray-400 group-hover:text-slate-500"></i>
+                                        <span class="text-sm font-medium text-gray-700 group-hover:text-slate-600">关闭管理</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 玩家信息展示 -->
+                        <div x-show="playerInfo" class="bg-white rounded-2xl shadow-sm border-2 border-primary-100 overflow-hidden slide-up">
+                            <div class="px-6 py-4 border-b border-primary-100 bg-primary-50 flex items-center gap-3">
+                                <i data-lucide="user-check" class="w-5 h-5 text-primary-600"></i>
+                                <h3 class="font-bold text-primary-900">玩家信息</h3>
+                            </div>
+                            <div class="p-6 overflow-x-auto">
+                                <table class="w-full">
+                                    <thead>
+                                        <tr class="border-b border-gray-100">
+                                            <th class="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase">字段</th>
+                                            <th class="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase">值</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="(value, key) in playerInfo" :key="key">
+                                            <tr class="border-b border-gray-50 hover:bg-gray-50">
+                                                <td class="py-3 px-4 font-medium text-gray-700" x-text="key"></td>
+                                                <td class="py-3 px-4 text-gray-600">
+                                                    <template x-if="typeof value === 'object'">
+                                                        <pre class="text-xs bg-gray-100 p-2 rounded-lg overflow-x-auto" x-text="JSON.stringify(value, null, 2)"></pre>
+                                                    </template>
+                                                    <template x-if="typeof value !== 'object'">
+                                                        <span x-text="value"></span>
+                                                    </template>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 充值组合 -->
+                    <div x-show="currentModule === 'recharge'" class="space-y-6 fade-in">
+                        <!-- 货币充值 -->
+                        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                            <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
+                                <div class="w-10 h-10 bg-yellow-100 rounded-xl flex items-center justify-center">
+                                    <i data-lucide="coins" class="w-5 h-5 text-yellow-600"></i>
+                                </div>
+                                <h3 class="font-bold text-gray-900">货币充值</h3>
+                            </div>
+                            <div class="p-6">
+                                <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">类型</label>
+                                        <select x-model="forms.recharge.currencyType"
+                                                class="w-full py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none">
+                                            <option>仙玉</option>
+                                            <option>点卡</option>
+                                            <option>银子</option>
+                                            <option>储备</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">数量</label>
+                                        <input type="text" x-model="forms.recharge.currencyAmount"
+                                               class="w-full py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none">
+                                    </div>
+                                    <div class="flex items-end">
+                                        <button @click="rechargeCurrency()" x-if="hasPermission('recharge.currency')"
+                                                class="w-full py-3 bg-primary-500 hover:bg-primary-600 text-white font-bold rounded-xl transition">
+                                            充值
+                                        </button>
+                                    </div>
+                                    <div class="flex items-end">
+                                        <button @click="getRechargeRecord()" x-if="hasPermission('recharge.currency')"
+                                                class="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition">
+                                            查看记录
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- GM等级 -->
+                        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                            <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
+                                <div class="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
+                                    <i data-lucide="crown" class="w-5 h-5 text-purple-600"></i>
+                                </div>
+                                <h3 class="font-bold text-gray-900">GM等级 / GM币</h3>
+                            </div>
+                            <div class="p-6">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">GM等级</label>
+                                        <select x-model="forms.recharge.gmLevel" @change="updateGmLevelAmount"
+                                                class="w-full py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none">
+                                            <option value="GM0">GM0</option>
+                                            <option value="GM1">GM1</option>
+                                            <option value="GM2">GM2</option>
+                                            <option value="GM3">GM3</option>
+                                            <option value="GM4">GM4</option>
+                                            <option value="GM5">GM5</option>
+                                            <option value="GM6">GM6</option>
+                                            <option value="GM7">GM7</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">数额</label>
+                                        <input type="text" x-model="forms.recharge.gmLevelAmount" readonly
+                                               class="w-full py-3 px-4 bg-gray-100 border-2 border-gray-100 rounded-xl text-gray-500 cursor-not-allowed">
+                                    </div>
+                                    <div class="flex items-end">
+                                        <button @click="rechargeGmLevel()" x-if="hasPermission('recharge.gm_level')"
+                                                class="w-full py-3 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded-xl transition">
+                                            充值GM
+                                        </button>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">GM币数额</label>
+                                        <input type="text" x-model="forms.recharge.gmCoinAmount"
+                                               class="w-full py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none">
+                                    </div>
+                                    <div class="flex items-end">
+                                        <button @click="rechargeGmCoin()" x-if="hasPermission('recharge.gm_coin')"
+                                                class="w-full py-3 bg-indigo-500 hover:bg-indigo-600 text-white font-bold rounded-xl transition">
+                                            充值GM币
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 经验/熟练/积分 -->
+                        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                            <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
+                                <div class="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
+                                    <i data-lucide="trending-up" class="w-5 h-5 text-green-600"></i>
+                                </div>
+                                <h3 class="font-bold text-gray-900">经验 / 熟练 / 积分</h3>
+                            </div>
+                            <div class="p-6">
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">充值类型</label>
+                                        <select x-model="forms.recharge.rechargeType"
+                                                class="w-full py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none">
+                                            <option>充值经验</option>
+                                            <option>充值累充</option>
+                                            <option>打造熟练</option>
+                                            <option>裁缝熟练</option>
+                                            <option>炼金熟练</option>
+                                            <option>淬灵熟练</option>
+                                            <option>充值帮贡</option>
+                                            <option>充值门贡</option>
+                                            <option>活跃积分</option>
+                                            <option>比武积分</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">数额</label>
+                                        <input type="text" x-model="forms.recharge.genericAmount"
+                                               class="w-full py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none">
+                                    </div>
+                                    <div class="flex items-end">
+                                        <button @click="rechargeGeneric()" x-if="hasPermission('recharge.experience') || hasPermission('recharge.cumulative') || hasPermission('recharge.crafting_skill') || hasPermission('recharge.tailoring_skill') || hasPermission('recharge.alchemy_skill') || hasPermission('recharge.tempering_skill') || hasPermission('recharge.gang_contribution') || hasPermission('recharge.faction_contribution') || hasPermission('recharge.activity_points') || hasPermission('recharge.combat_points')"
+                                                class="w-full py-3 bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl transition">
+                                            充值
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 八卦设置 -->
+                        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                            <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
+                                <div class="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center">
+                                    <i data-lucide="compass" class="w-5 h-5 text-slate-600"></i>
+                                </div>
+                                <h3 class="font-bold text-gray-900">八卦设置</h3>
+                            </div>
+                            <div class="p-6">
+                                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">八卦</label>
+                                        <select x-model="forms.recharge.baguaName"
+                                                class="w-full py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none">
+                                            <option>乾</option>
+                                            <option>巽</option>
+                                            <option>坎</option>
+                                            <option>艮</option>
+                                            <option>坤</option>
+                                            <option>震</option>
+                                            <option>离</option>
+                                            <option>兑</option>
+                                        </select>
+                                    </div>
+                                    <div class="flex items-end">
+                                        <button @click="setBagua()" x-if="hasPermission('recharge.bagua')"
+                                                class="w-full py-3 bg-slate-500 hover:bg-slate-600 text-white font-bold rounded-xl transition">
+                                            设置八卦
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 宝宝管理 -->
+                    <div x-show="currentModule === 'pet'" class="space-y-6 fade-in">
+                        <!-- 宝宝选择 -->
+                        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                            <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
+                                <div class="w-10 h-10 bg-pink-100 rounded-xl flex items-center justify-center">
+                                    <i data-lucide="heart" class="w-5 h-5 text-pink-600"></i>
+                                </div>
+                                <h3 class="font-bold text-gray-900">宝宝选择</h3>
+                            </div>
+                            <div class="p-6">
+                                <div class="flex flex-col sm:flex-row gap-4">
+                                    <div class="flex-1">
+                                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">当前宝宝</label>
+                                        <select x-model="forms.pet.selected_index" @change="onPetSelected()"
+                                                class="w-full py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none">
+                                            <option value="">请先获取宝宝信息</option>
+                                            <template x-for="(pet, idx) in petData" :key="idx">
+                                                <option :value="idx" x-text="pet['名称'] + ' (Lv.' + pet['等级'] + ')'"></option>
+                                            </template>
+                                        </select>
+                                    </div>
+                                    <div class="flex gap-3">
+                                        <button @click="getPetInfo()" x-if="hasPermission('pet.get_info')"
+                                                class="px-6 py-3 bg-primary-500 hover:bg-primary-600 text-white font-bold rounded-xl transition">
+                                            获取宝宝
+                                        </button>
+                                        <button @click="modifyPet()" x-if="hasPermission('pet.modify')"
+                                                class="px-6 py-3 bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl transition">
+                                            保存修改
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <!-- 基础属性 -->
+                            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                <div class="px-6 py-4 border-b border-gray-100">
+                                    <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider">基础属性</h3>
+                                </div>
+                                <div class="p-6">
+                                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                        <template x-for="field in petFields.attrs" :key="field">
+                                            <div>
+                                                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1" x-text="field"></label>
+                                                <input type="text" x-model="forms.pet.attrs[field]"
+                                                       class="w-full py-2 px-3 text-sm bg-gray-50 border-2 border-gray-100 rounded-lg focus:border-primary-500 transition outline-none">
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 天生技能 -->
+                            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                <div class="px-6 py-4 border-b border-gray-100">
+                                    <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider">天生技能</h3>
+                                </div>
+                                <div class="p-6">
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <template x-for="i in 4" :key="i">
+                                            <div>
+                                                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1" x-text="'天生0'+i"></label>
+                                                <input type="text" x-model="forms.pet.innate['天生0'+i]"
+                                                       class="w-full py-2 px-3 text-sm bg-gray-50 border-2 border-gray-100 rounded-lg focus:border-primary-500 transition outline-none">
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 技能 (20格) -->
+                            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden lg:col-span-2">
+                                <div class="px-6 py-4 border-b border-gray-100">
+                                    <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider">技能 (20格)</h3>
+                                </div>
+                                <div class="p-6">
+                                    <div class="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-10 gap-2">
+                                        <template x-for="i in 20" :key="i">
+                                            <input type="text" x-model="forms.pet.skills['技能'+(i<10?'0'+i:i)]"
+                                                   :placeholder="i"
+                                                   class="w-full py-2 px-2 text-xs text-center bg-gray-50 border-2 border-gray-100 rounded-lg focus:border-primary-500 transition outline-none">
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 坐骑管理 -->
+                            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                <div class="px-6 py-4 border-b border-gray-100">
+                                    <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider">坐骑管理</h3>
+                                </div>
+                                <div class="p-6 space-y-4">
+                                    <div class="flex flex-col sm:flex-row gap-3">
+                                        <select x-model="forms.pet.selectedMountIndex" @change="onMountSelected()"
+                                                class="flex-1 py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none">
+                                            <option value="">请先获取坐骑</option>
+                                            <template x-for="(mount, idx) in mountData" :key="idx">
+                                                <option :value="idx" x-text="mount['名称'] + ' (Lv.' + mount['等级'] + ')'"></option>
+                                            </template>
+                                        </select>
+                                        <button @click="getMount()" x-if="hasPermission('pet.get_mount')"
+                                                class="px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition">
+                                            获取坐骑
+                                        </button>
+                                    </div>
+                                    <div class="grid grid-cols-3 gap-3">
+                                        <div>
+                                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">等级</label>
+                                            <input type="text" x-model="forms.pet.mountModify['等级']"
+                                                   class="w-full py-2 px-3 text-sm bg-gray-50 border-2 border-gray-100 rounded-lg focus:border-primary-500 transition outline-none">
+                                        </div>
+                                        <div>
+                                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">成长</label>
+                                            <input type="text" x-model="forms.pet.mountModify['成长']"
+                                                   class="w-full py-2 px-3 text-sm bg-gray-50 border-2 border-gray-100 rounded-lg focus:border-primary-500 transition outline-none">
+                                        </div>
+                                        <div>
+                                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">技能点</label>
+                                            <input type="text" x-model="forms.pet.mountModify['技能点']"
+                                                   class="w-full py-2 px-3 text-sm bg-gray-50 border-2 border-gray-100 rounded-lg focus:border-primary-500 transition outline-none">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-2">坐骑技能 (最多5个)</label>
+                                        <div class="grid grid-cols-5 gap-2">
+                                            <template x-for="i in 5" :key="i">
+                                                <select x-model="forms.pet.mountSkills[i-1]"
+                                                        class="w-full py-2 px-2 text-xs bg-gray-50 border-2 border-gray-100 rounded-lg focus:border-primary-500 transition outline-none">
+                                                    <option value="">-</option>
+                                                    <template x-for="skill in mountSkillsList" :key="skill">
+                                                        <option :value="skill" x-text="skill"></option>
+                                                    </template>
+                                                </select>
+                                            </template>
+                                        </div>
+                                    </div>
+                                    <button @click="modifyMount()" x-if="hasPermission('pet.modify_mount')"
+                                            class="w-full py-3 bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl transition">
+                                        修改坐骑
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- 宝宝装备定制 -->
+                            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                <div class="px-6 py-4 border-b border-gray-100">
+                                    <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider">宝宝装备定制</h3>
+                                </div>
+                                <div class="p-6 space-y-4">
+                                    <div class="grid grid-cols-3 gap-3">
+                                        <div>
+                                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">部位</label>
+                                            <input type="text" x-model="forms.pet.petEquip['部位']" placeholder="护腕/项圈/铠甲"
+                                                   class="w-full py-2 px-3 text-sm bg-gray-50 border-2 border-gray-100 rounded-lg focus:border-primary-500 transition outline-none">
+                                        </div>
+                                        <div>
+                                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">属性</label>
+                                            <input type="text" x-model="forms.pet.petEquip['属性']"
+                                                   class="w-full py-2 px-3 text-sm bg-gray-50 border-2 border-gray-100 rounded-lg focus:border-primary-500 transition outline-none">
+                                        </div>
+                                        <div>
+                                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">数值</label>
+                                            <input type="text" x-model="forms.pet.petEquip['数值']"
+                                                   class="w-full py-2 px-3 text-sm bg-gray-50 border-2 border-gray-100 rounded-lg focus:border-primary-500 transition outline-none">
+                                        </div>
+                                    </div>
+                                    <button @click="customPetEquip()" x-if="hasPermission('pet.custom_equip')"
+                                            class="w-full py-3 bg-primary-500 hover:bg-primary-600 text-white font-bold rounded-xl transition">
+                                        发送宝宝装备
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 装备管理 -->
+                    <div x-show="currentModule === 'equipment'" class="space-y-6 fade-in">
+                        <!-- 标签页 -->
+                        <div class="flex gap-2 p-1 bg-gray-100 rounded-xl">
+                            <button @click="forms.equip.tab = 'equip'"
+                                    :class="forms.equip.tab === 'equip' ? 'bg-white shadow-sm text-primary-600' : 'text-gray-600'"
+                                    class="flex-1 py-3 px-4 font-medium rounded-lg transition">
+                                装备定制
+                            </button>
+                            <button @click="forms.equip.tab = 'ornament'"
+                                    :class="forms.equip.tab === 'ornament' ? 'bg-white shadow-sm text-primary-600' : 'text-gray-600'"
+                                    class="flex-1 py-3 px-4 font-medium rounded-lg transition">
+                                灵饰定制
+                            </button>
+                            <button @click="forms.equip.tab = 'affix'"
+                                    :class="forms.equip.tab === 'affix' ? 'bg-white shadow-sm text-primary-600' : 'text-gray-600'"
+                                    class="flex-1 py-3 px-4 font-medium rounded-lg transition">
+                                词条管理
+                            </button>
+                        </div>
+
+                        <!-- 装备定制 -->
+                        <div x-show="forms.equip.tab === 'equip'" class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                            <div class="px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                                <select x-model="forms.equip.type"
+                                        class="py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none">
+                                    <option>武器</option>
+                                    <option>衣服</option>
+                                    <option>头盔</option>
+                                    <option>项链</option>
+                                    <option>腰带</option>
+                                    <option>鞋子</option>
+                                </select>
+                                <div class="flex gap-3">
+                                    <button @click="getEquip()" x-if="hasPermission('equipment.custom')"
+                                            class="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition">
+                                        获取
+                                    </button>
+                                    <button @click="sendEquip()" x-if="hasPermission('equipment.custom')"
+                                            class="px-6 py-3 bg-primary-500 hover:bg-primary-600 text-white font-bold rounded-xl transition">
+                                        发送
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="p-6">
+                                <div class="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-3">
+                                    <template x-for="field in equipFields" :key="field">
+                                        <div>
+                                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1" x-text="field"></label>
+                                            <input type="text" x-model="forms.equip.data[field]"
+                                                   class="w-full py-2 px-3 text-sm bg-gray-50 border-2 border-gray-100 rounded-lg focus:border-primary-500 transition outline-none">
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 灵饰定制 -->
+                        <div x-show="forms.equip.tab === 'ornament'" class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                            <div class="px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                                <select x-model="forms.equip.ornamentType"
+                                        class="py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none">
+                                    <option>戒指</option>
+                                    <option>手镯</option>
+                                    <option>佩饰</option>
+                                    <option>耳饰</option>
+                                </select>
+                                <div class="flex gap-3">
+                                    <button @click="getOrnament()" x-if="hasPermission('equipment.ornament')"
+                                            class="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition">
+                                        获取
+                                    </button>
+                                    <button @click="sendOrnament()" x-if="hasPermission('equipment.ornament')"
+                                            class="px-6 py-3 bg-primary-500 hover:bg-primary-600 text-white font-bold rounded-xl transition">
+                                        发送
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="p-6 space-y-6">
+                                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">等级</label>
+                                        <input type="text" x-model="forms.equip.ornamentData.level"
+                                               class="w-full py-2 px-3 text-sm bg-gray-50 border-2 border-gray-100 rounded-lg focus:border-primary-500 transition outline-none">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">主属性</label>
+                                        <select x-model="forms.equip.ornamentData.mainAttr"
+                                                class="w-full py-2 px-3 text-sm bg-gray-50 border-2 border-gray-100 rounded-lg focus:border-primary-500 transition outline-none">
+                                            <option>伤害</option>
+                                            <option>防御</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">数值</label>
+                                        <input type="text" x-model="forms.equip.ornamentData.mainValue"
+                                               class="w-full py-2 px-3 text-sm bg-gray-50 border-2 border-gray-100 rounded-lg focus:border-primary-500 transition outline-none">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">词条</label>
+                                    <div class="space-y-2">
+                                        <template x-for="(attr, i) in forms.equip.ornamentData.attrs" :key="i">
+                                            <div class="grid grid-cols-2 gap-2">
+                                                <input type="text" x-model="attr.name" placeholder="词条名称"
+                                                       class="w-full py-2 px-3 text-sm bg-gray-50 border-2 border-gray-100 rounded-lg focus:border-primary-500 transition outline-none">
+                                                <input type="text" x-model="attr.value" placeholder="数值"
+                                                       class="w-full py-2 px-3 text-sm bg-gray-50 border-2 border-gray-100 rounded-lg focus:border-primary-500 transition outline-none">
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">特效</label>
+                                    <div class="space-y-2">
+                                        <template x-for="(effect, i) in forms.equip.ornamentData.effects" :key="i">
+                                            <div class="grid grid-cols-2 gap-2">
+                                                <input type="text" x-model="effect.name" placeholder="特效名称"
+                                                       class="w-full py-2 px-3 text-sm bg-gray-50 border-2 border-gray-100 rounded-lg focus:border-primary-500 transition outline-none">
+                                                <input type="text" x-model="effect.value" placeholder="数值"
+                                                       class="w-full py-2 px-3 text-sm bg-gray-50 border-2 border-gray-100 rounded-lg focus:border-primary-500 transition outline-none">
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 词条管理 -->
+                        <div x-show="forms.equip.tab === 'affix'" class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                            <div class="px-6 py-4 border-b border-gray-100 flex gap-3">
+                                <button @click="getAffix()" x-if="hasPermission('equipment.affix')"
+                                        class="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition">
+                                    获取词条
+                                </button>
+                                <button @click="sendAffix()" x-if="hasPermission('equipment.affix')"
+                                        class="px-6 py-3 bg-primary-500 hover:bg-primary-600 text-white font-bold rounded-xl transition">
+                                    修改词条
+                                </button>
+                            </div>
+                            <div class="p-6 space-y-6">
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">主属性</label>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <input type="text" x-model="forms.equip.affixData.mainAttrName" placeholder="属性"
+                                               class="w-full py-2 px-3 text-sm bg-gray-50 border-2 border-gray-100 rounded-lg focus:border-primary-500 transition outline-none">
+                                        <input type="text" x-model="forms.equip.affixData.mainAttrValue" placeholder="数值"
+                                               class="w-full py-2 px-3 text-sm bg-gray-50 border-2 border-gray-100 rounded-lg focus:border-primary-500 transition outline-none">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">词条</label>
+                                    <div class="space-y-2">
+                                        <template x-for="(affix, i) in forms.equip.affixData.affixes" :key="i">
+                                            <div class="grid grid-cols-2 gap-2">
+                                                <input type="text" x-model="affix.name" placeholder="词条名称"
+                                                       class="w-full py-2 px-3 text-sm bg-gray-50 border-2 border-gray-100 rounded-lg focus:border-primary-500 transition outline-none">
+                                                <input type="text" x-model="affix.value" placeholder="数值"
+                                                       class="w-full py-2 px-3 text-sm bg-gray-50 border-2 border-gray-100 rounded-lg focus:border-primary-500 transition outline-none">
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">特效</label>
+                                    <div class="space-y-2">
+                                        <template x-for="(effect, i) in forms.equip.affixData.effects" :key="i">
+                                            <div class="grid grid-cols-2 gap-2">
+                                                <input type="text" x-model="effect.name" placeholder="特效名称"
+                                                       class="w-full py-2 px-3 text-sm bg-gray-50 border-2 border-gray-100 rounded-lg focus:border-primary-500 transition outline-none">
+                                                <input type="text" x-model="effect.value" placeholder="数值"
+                                                       class="w-full py-2 px-3 text-sm bg-gray-50 border-2 border-gray-100 rounded-lg focus:border-primary-500 transition outline-none">
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 物品赠送 -->
+                    <div x-show="currentModule === 'gift'" class="space-y-6 fade-in">
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <!-- 道具/宝石 -->
+                            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
+                                    <div class="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
+                                        <i data-lucide="gift" class="w-5 h-5 text-emerald-600"></i>
+                                    </div>
+                                    <h3 class="font-bold text-gray-900">道具 / 宝石</h3>
+                                </div>
+                                <div class="p-6 space-y-6">
+                                    <div class="grid grid-cols-4 gap-3">
+                                        <div class="col-span-2">
+                                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">道具名称</label>
+                                            <input type="text" x-model="forms.gift.itemName"
+                                                   class="w-full py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none"
+                                                   placeholder="输入道具名称">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">数量</label>
+                                            <input type="text" x-model="forms.gift.itemCount"
+                                                   class="w-full py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none">
+                                        </div>
+                                        <div class="flex items-end">
+                                            <button @click="giveItem()" x-if="hasPermission('gift.give_item')"
+                                                    class="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl transition">
+                                                给予
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="border-t border-gray-100 pt-6">
+                                        <div class="grid grid-cols-6 gap-3">
+                                            <div class="col-span-2">
+                                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">宝石类型</label>
+                                                <select x-model="forms.gift.gemType"
+                                                        class="w-full py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none">
+                                                    <option>星辉石</option>
+                                                    <option>光芒石</option>
+                                                    <option>月亮石</option>
+                                                    <option>太阳石</option>
+                                                    <option>舍利子</option>
+                                                    <option>红玛瑙</option>
+                                                    <option>黑宝石</option>
+                                                    <option>神秘石</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">最低</label>
+                                                <input type="text" x-model="forms.gift.gemLevel"
+                                                       class="w-full py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none">
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">最高</label>
+                                                <input type="text" x-model="forms.gift.gemMaxLevel"
+                                                       class="w-full py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none">
+                                            </div>
+                                            <div class="col-span-2 flex items-end">
+                                                <button @click="giveGem()" x-if="hasPermission('gift.give_gem')"
+                                                        class="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-xl transition">
+                                                    给予宝石
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- CDK管理 -->
+                            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
+                                    <div class="w-10 h-10 bg-violet-100 rounded-xl flex items-center justify-center">
+                                        <i data-lucide="ticket" class="w-5 h-5 text-violet-600"></i>
+                                    </div>
+                                    <h3 class="font-bold text-gray-900">CDK 管理</h3>
+                                </div>
+                                <div class="p-6 space-y-4">
+                                    <div class="flex gap-2">
+                                        <button @click="loadRechargeTypes()" x-if="hasPermission('gift.get_recharge_types')"
+                                                class="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-medium transition">
+                                            获取类型
+                                        </button>
+                                        <button @click="loadRechargeCards()" x-if="hasPermission('gift.get_recharge_cards')"
+                                                class="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-medium transition">
+                                            获取卡号
+                                        </button>
+                                    </div>
+                                    <select x-model="forms.gift.cdkType"
+                                            class="w-full py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none">
+                                        <option value="">选择充值类型...</option>
+                                        <template x-for="t in forms.gift.rechargeTypes" :key="t">
+                                            <option x-text="t"></option>
+                                        </template>
+                                    </select>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">数量</label>
+                                            <input type="text" x-model="forms.gift.cdkCount"
+                                                   class="w-full py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">位数</label>
+                                                                                        <input type="text" x-model="forms.gift.cdkDigits"
+                                                   class="w-full py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">自定义内容</label>
+                                        <input type="text" x-model="forms.gift.cdkCustom"
+                                               class="w-full py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none"
+                                               placeholder="可选">
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <button @click="generateCdk()" x-if="hasPermission('gift.generate_cdk')"
+                                                class="py-3 bg-primary-500 hover:bg-primary-600 text-white font-bold rounded-xl transition">
+                                            生成CDK
+                                        </button>
+                                        <button @click="generateCustomCdk()" x-if="hasPermission('gift.generate_custom_cdk')"
+                                                class="py-3 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded-xl transition">
+                                            自定义CDK
+                                        </button>
+                                        <button @click="newRechargeType()" x-if="hasPermission('gift.new_recharge_type')"
+                                                class="py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition">
+                                            新建类型
+                                        </button>
+                                        <button @click="delRechargeType()" x-if="hasPermission('gift.del_recharge_type')"
+                                                class="py-3 bg-red-100 hover:bg-red-200 text-red-600 font-medium rounded-xl transition">
+                                            删除类型
+                                        </button>
+                                    </div>
+                                    <div x-show="forms.gift.rechargeCards.length > 0"
+                                         class="p-4 bg-gray-50 rounded-xl text-sm text-gray-600 max-h-32 overflow-y-auto">
+                                        <span class="font-medium">已有卡号：</span>
+                                        <span x-text="forms.gift.rechargeCards.join(', ')"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 游戏管理 -->
+                    <div x-show="currentModule === 'game'" class="space-y-6 fade-in">
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <!-- 广播公告 -->
+                            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
+                                    <div class="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
+                                        <i data-lucide="megaphone" class="w-5 h-5 text-orange-600"></i>
+                                    </div>
+                                    <h3 class="font-bold text-gray-900">广播公告</h3>
+                                </div>
+                                <div class="p-6 space-y-4">
+                                    <textarea x-model="forms.game.broadcast"
+                                              class="w-full h-32 p-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none resize-none"
+                                              placeholder="输入广播/公告内容..."></textarea>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <button @click="sendBroadcast('广播')" x-if="hasPermission('game.broadcast')"
+                                                class="py-3 bg-primary-500 hover:bg-primary-600 text-white font-bold rounded-xl transition">
+                                            发送广播
+                                        </button>
+                                        <button @click="sendBroadcast('公告')" x-if="hasPermission('game.announcement')"
+                                                class="py-3 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded-xl transition">
+                                            发送公告
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 全局设置 -->
+                            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
+                                    <div class="w-10 h-10 bg-cyan-100 rounded-xl flex items-center justify-center">
+                                        <i data-lucide="sliders" class="w-5 h-5 text-cyan-600"></i>
+                                    </div>
+                                    <h3 class="font-bold text-gray-900">全局设置</h3>
+                                </div>
+                                <div class="p-6 space-y-4">
+                                    <div class="flex gap-3">
+                                        <input type="text" x-model="forms.game.rate"
+                                               class="flex-1 py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none"
+                                               placeholder="数值">
+                                        <button @click="setGameSetting('经验倍率')" x-if="hasPermission('game.exp_rate')"
+                                                class="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition whitespace-nowrap">
+                                            经验倍率
+                                        </button>
+                                    </div>
+                                    <div class="flex gap-3">
+                                        <input type="text" x-model="forms.game.diff"
+                                               class="flex-1 py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none"
+                                               placeholder="数值">
+                                        <button @click="setGameSetting('游戏难度')" x-if="hasPermission('game.difficulty')"
+                                                class="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition whitespace-nowrap">
+                                            游戏难度
+                                        </button>
+                                    </div>
+                                    <div class="flex gap-3">
+                                        <input type="text" x-model="forms.game.cap"
+                                               class="flex-1 py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none"
+                                               placeholder="等级上限">
+                                        <button @click="setGameSetting('等级上限')" x-if="hasPermission('game.level_cap')"
+                                                class="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition whitespace-nowrap">
+                                            等级上限
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 活动控制 -->
+                            <div class="lg:col-span-3 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
+                                    <div class="w-10 h-10 bg-rose-100 rounded-xl flex items-center justify-center">
+                                        <i data-lucide="party-popper" class="w-5 h-5 text-rose-600"></i>
+                                    </div>
+                                    <h3 class="font-bold text-gray-900">活动控制</h3>
+                                </div>
+                                <div class="p-6">
+                                    <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
+                                        <template x-for="act in activityList" :key="act">
+                                            <button @click="triggerActivity(act)" x-if="hasPermission('game.activity')"
+                                                    class="p-3 bg-gray-50 hover:bg-primary-50 hover:border-primary-200 border-2 border-gray-100 text-gray-600 hover:text-primary-600 rounded-xl transition text-xs font-medium text-center"
+                                                    x-text="act">
+                                            </button>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 角色管理 -->
+                    <div x-show="currentModule === 'character'" class="space-y-6 fade-in">
+                        <!-- 操作按钮 -->
+                        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+                            <div class="flex flex-wrap gap-3">
+                                <button @click="getCharacterInfo()" x-if="hasPermission('character.get_info')"
+                                        class="flex items-center gap-2 px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition">
+                                    <i data-lucide="download" class="w-4 h-4"></i>
+                                    获取角色信息
+                                </button>
+                                <button @click="recoverCharacterProps()" x-if="hasPermission('character.recover_props')"
+                                        class="flex items-center gap-2 px-6 py-3 bg-primary-500 hover:bg-primary-600 text-white font-bold rounded-xl transition">
+                                    <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                                    恢复角色道具
+                                </button>
+                                <button @click="modifyCharacter()" x-if="hasPermission('character.modify')"
+                                        class="flex items-center gap-2 px-6 py-3 bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl transition ml-auto">
+                                    <i data-lucide="save" class="w-4 h-4"></i>
+                                    确定修改
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <!-- 角色修炼 -->
+                            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                <div class="px-6 py-4 border-b border-gray-100">
+                                    <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider">角色修炼</h3>
+                                </div>
+                                <div class="p-6">
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <template x-for="f in characterFields.cultivation" :key="f">
+                                            <div>
+                                                <label class="block text-xs font-bold text-gray-400 uppercase mb-2" x-text="f"></label>
+                                                <input type="text" x-model="forms.character.cultivation[f]"
+                                                       class="w-full py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none">
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 生活技能 -->
+                            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                <div class="px-6 py-4 border-b border-gray-100">
+                                    <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider">生活技能</h3>
+                                </div>
+                                <div class="p-6">
+                                    <div class="grid grid-cols-3 gap-3">
+                                        <template x-for="f in characterFields.life" :key="f">
+                                            <div>
+                                                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1" x-text="f"></label>
+                                                <input type="text" x-model="forms.character.life[f]"
+                                                       class="w-full py-2 px-3 text-sm bg-gray-50 border-2 border-gray-100 rounded-lg focus:border-primary-500 transition outline-none">
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 强化技能 -->
+                            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                <div class="px-6 py-4 border-b border-gray-100">
+                                    <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider">强化技能</h3>
+                                </div>
+                                <div class="p-6">
+                                    <div class="grid grid-cols-3 gap-3">
+                                        <template x-for="f in characterFields.enhancement" :key="f">
+                                            <div>
+                                                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1" x-text="f"></label>
+                                                <input type="text" x-model="forms.character.enhancement[f]"
+                                                       class="w-full py-2 px-3 text-sm bg-gray-50 border-2 border-gray-100 rounded-lg focus:border-primary-500 transition outline-none">
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 召唤兽修炼 -->
+                            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                <div class="px-6 py-4 border-b border-gray-100">
+                                    <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider">召唤兽修炼</h3>
+                                </div>
+                                <div class="p-6">
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <template x-for="f in characterFields.petCultivation" :key="f">
+                                            <div>
+                                                <label class="block text-xs font-bold text-gray-400 uppercase mb-2" x-text="f"></label>
+                                                <input type="text" x-model="forms.character.petCultivation[f]"
+                                                       class="w-full py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none">
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 激活码 -->
+                    <div x-show="currentModule === 'activation'" class="space-y-6 fade-in">
+                        <!-- 用户信息 -->
+                        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                            <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
+                                <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+                                    <i data-lucide="user" class="w-5 h-5 text-blue-600"></i>
+                                </div>
+                                <h3 class="font-bold text-gray-900">用户信息</h3>
+                            </div>
+                            <div class="p-6">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">用户名</label>
+                                        <div class="py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl text-gray-700 font-medium">
+                                            <span x-text="currentUser?.username || '-'">-</span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">权限等级</label>
+                                        <div class="py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl text-gray-700 font-medium">
+                                            <span x-text="currentUser?.level || '-'">-</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 使用激活码 -->
+                        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                            <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
+                                <div class="w-10 h-10 bg-violet-100 rounded-xl flex items-center justify-center">
+                                    <i data-lucide="ticket" class="w-5 h-5 text-violet-600"></i>
+                                </div>
+                                <h3 class="font-bold text-gray-900">使用激活码</h3>
+                            </div>
+                            <div class="p-6">
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">激活码</label>
+                                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                            <div class="md:col-span-2">
+                                                <input type="text" x-model="forms.activation.code"
+                                                       class="w-full py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 transition outline-none"
+                                                       placeholder="输入激活码">
+                                            </div>
+                                            <div>
+                                                <button @click="useActivationCode()"
+                                                        class="w-full py-3 bg-primary-500 hover:bg-primary-600 text-white font-bold rounded-xl transition">
+                                                    使用
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 日志管理 -->
+                    <div x-show="currentModule === 'logs'" class="h-full fade-in">
+                        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden h-full min-h-[500px] flex flex-col">
+                            <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center">
+                                        <i data-lucide="terminal" class="w-5 h-5 text-slate-600"></i>
+                                    </div>
+                                    <h3 class="font-bold text-gray-900">API 控制台</h3>
+                                </div>
+                                <button @click="clearLogs()"
+                                        class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl text-sm font-medium transition">
+                                    清空日志
+                                </button>
+                            </div>
+                            <div class="flex-1 console-bg overflow-y-auto p-4 font-mono text-sm" id="consoleOutput">
+                                <template x-if="consoleLogs.length === 0">
+                                    <div class="text-gray-500 text-center py-20">
+                                        <i data-lucide="terminal" class="w-12 h-12 mx-auto mb-4 opacity-50"></i>
+                                        <p>等待 API 请求...</p>
+                                    </div>
+                                </template>
+                                <div class="space-y-3">
+                                    <template x-for="(log, idx) in consoleLogs" :key="idx">
+                                        <div class="border-l-2 pl-4 py-2"
+                                             :class="log.type === 'error' ? 'border-red-500' : 'border-emerald-500'">
+                                            <div class="flex items-center gap-3 mb-2 flex-wrap">
+                                                <span class="text-gray-500 text-xs" x-text="log.time"></span>
+                                                <span :class="log.type === 'error' ? 'bg-red-500/20 text-red-400' : 'bg-emerald-500/20 text-emerald-400'"
+                                                      class="px-2 py-0.5 rounded text-xs font-bold" x-text="log.status"></span>
+                                                <span class="text-blue-400 text-xs" x-text="log.title"></span>
+                                            </div>
+                                            <pre class="console-text text-xs whitespace-pre-wrap break-all overflow-x-auto" x-text="log.data"></pre>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- 控制台侧边栏 (桌面端) -->
+                <div x-show="showConsole" x-cloak
+                     class="hidden lg:flex w-96 border-l border-gray-200 flex-col bg-white slide-in-right">
+                    <div class="h-16 px-6 border-b border-gray-100 flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="terminal" class="w-5 h-5 text-gray-400"></i>
+                            <span class="font-bold text-gray-900">控制台</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button @click="clearLogs()" class="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-600">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                            <button @click="showConsole = false" class="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-600">
+                                <i data-lucide="x" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="flex-1 console-bg overflow-y-auto p-4 font-mono text-xs">
+                        <template x-if="consoleLogs.length === 0">
+                            <div class="text-gray-500 text-center py-10">等待请求...</div>
+                        </template>
+                        <div class="space-y-3">
+                            <template x-for="(log, idx) in consoleLogs" :key="idx">
+                                <div class="border-l-2 pl-3 py-1"
+                                     :class="log.type === 'error' ? 'border-red-500' : 'border-emerald-500'">
+                                    <div class="flex items-center gap-2 mb-1 flex-wrap">
+                                        <span class="text-gray-500" x-text="log.time"></span>
+                                        <span :class="log.type === 'error' ? 'text-red-400' : 'text-emerald-400'"
+                                              class="font-bold" x-text="log.status"></span>
+                                    </div>
+                                    <div class="text-blue-300 mb-1 break-all" x-text="log.title"></div>
+                                    <pre class="console-text whitespace-pre-wrap break-all" x-text="log.data"></pre>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 移动端控制台抽屉 -->
+    <div x-show="showConsole && isLoggedIn" x-cloak
+         class="lg:hidden fixed inset-0 z-50 flex flex-col bg-black/50 backdrop-blur-sm"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-1"
+         @click.self="showConsole = false">
+        <div class="mt-auto bg-white rounded-t-3xl max-h-[80vh] flex flex-col slide-up safe-bottom">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <div class="flex items-center gap-3">
+                    <i data-lucide="terminal" class="w-5 h-5 text-gray-400"></i>
+                    <span class="font-bold">控制台</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button @click="clearLogs()" class="p-2 hover:bg-gray-100 rounded-lg">
+                        <i data-lucide="trash-2" class="w-5 h-5 text-gray-400"></i>
+                    </button>
+                    <button @click="showConsole = false" class="p-2 hover:bg-gray-100 rounded-lg">
+                        <i data-lucide="x" class="w-5 h-5 text-gray-400"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="flex-1 console-bg overflow-y-auto p-4 font-mono text-xs">
+                <template x-if="consoleLogs.length === 0">
+                    <div class="text-gray-500 text-center py-10">等待请求...</div>
+                </template>
+                <div class="space-y-3">
+                    <template x-for="(log, idx) in consoleLogs" :key="idx">
+                        <div class="border-l-2 pl-3 py-1"
+                             :class="log.type === 'error' ? 'border-red-500' : 'border-emerald-500'">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="text-gray-500" x-text="log.time"></span>
+                                <span :class="log.type === 'error' ? 'text-red-400' : 'text-emerald-400'"
+                                      class="font-bold" x-text="log.status"></span>
+                            </div>
+                            <pre class="console-text whitespace-pre-wrap break-all" x-text="log.data"></pre>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Lua表解析器
+        function parseLuaTable(str) {
+            if (!str || typeof str !== 'string') return {};
+            let pos = 0;
+            const len = str.length;
+            
+            function skipWhitespace() { while (pos < len && /\s/.test(str[pos])) pos++; }
+            
+            function parseString() {
+                const quote = str[pos]; pos++;
+                let result = '';
+                while (pos < len && str[pos] !== quote) {
+                    if (str[pos] === '\\' && pos + 1 < len) { pos++; result += str[pos]; }
+                    else { result += str[pos]; }
+                    pos++;
+                }
+                pos++;
+                return result;
+            }
+            
+            function parseNumber() {
+                let numStr = '';
+                if (str[pos] === '-') { numStr += str[pos]; pos++; }
+                while (pos < len && /[0-9.]/.test(str[pos])) { numStr += str[pos]; pos++; }
+                return parseFloat(numStr);
+            }
+            
+            function parseIdentifier() {
+                let id = '';
+                while (pos < len && /[a-zA-Z0-9_\u4e00-\u9fa5]/.test(str[pos])) { id += str[pos]; pos++; }
+                return id;
+            }
+            
+            function parseValue() {
+                skipWhitespace();
+                if (pos >= len) return null;
+                const char = str[pos];
+                if (char === '"' || char === "'") return parseString();
+                if (char === '{') return parseTable();
+                if (/[0-9]/.test(char) || (char === '-' && pos + 1 < len && /[0-9]/.test(str[pos + 1]))) return parseNumber();
+                const id = parseIdentifier();
+                if (id === 'true') return true;
+                if (id === 'false') return false;
+                if (id === 'nil') return null;
+                return id;
+            }
+            
+            function parseTable() {
+                const result = {}; let arrayIndex = 1;
+                pos++; skipWhitespace();
+                while (pos < len && str[pos] !== '}') {
+                    skipWhitespace();
+                    if (str[pos] === '}') break;
+                    let key, value;
+                    if (str[pos] === '[') {
+                        pos++; skipWhitespace();
+                        key = (str[pos] === '"' || str[pos] === "'") ? parseString() : parseNumber();
+                        skipWhitespace(); pos++; skipWhitespace(); pos++; skipWhitespace();
+                        value = parseValue();
+                    } else if (/[a-zA-Z_\u4e00-\u9fa5]/.test(str[pos])) {
+                        key = parseIdentifier(); skipWhitespace();
+                        if (str[pos] === '=') { pos++; skipWhitespace(); value = parseValue(); }
+                        else { value = key; key = arrayIndex; }
+                    } else { key = arrayIndex; value = parseValue(); }
+                    result[key] = value;
+                    if (typeof key === 'number' && key === arrayIndex) arrayIndex++;
+                    skipWhitespace();
+                    if (str[pos] === ',') { pos++; skipWhitespace(); }
+                }
+                pos++;
+                return result;
+            }
+            
+            skipWhitespace();
+            return str[pos] === '{' ? parseTable() : {};
+        }
+
+        function app() {
+            return {
+                // 状态
+                isLoggedIn: false,
+                loading: false,
+                token: localStorage.getItem('access_token'),
+                currentUser: null,
+                currentModule: 'account',
+                mobileMenuOpen: false,
+                showConsole: false,
+                showPassword: false,
+                
+                // Toast
+                toasts: [],
+                toastId: 0,
+                
+                // 控制台日志
+                consoleLogs: [],
+                
+                // 玩家信息
+                playerInfo: null,
+                petData: [],
+                mountData: [],
+                playerIdHistory: [],
+                selectedPlayerIdHistory: '',
+
+                // 模块定义
+                modules: {
+                    account: { name: '账号管理', icon: 'user-cog', description: '管理玩家账号' },
+                    recharge: { name: '充值组合', icon: 'coins', description: '货币与等级充值' },
+                    character: { name: '角色管理', icon: 'user', description: '角色属性修改' },
+                    pet: { name: '宝宝管理', icon: 'heart', description: '宠物与坐骑' },
+                    equipment: { name: '装备管理', icon: 'sword', description: '装备与灵饰' },
+                    gift: { name: '物品赠送', icon: 'gift', description: '道具与CDK' },
+                    game: { name: '游戏管理', icon: 'settings', description: '活动与设置' },
+                    activation: { name: '激活码', icon: 'ticket', description: '使用激活码' },
+                    logs: { name: '日志管理', icon: 'scroll-text', description: 'API调试' }
+                },
+
+                // 活动列表
+                activityList: ['四墓灵鼠','天降灵猴','皇宫飞贼','门派入侵','长安保卫','新春活动','嘉年华','天降辰星','彩虹争霸','糖果派对','知了先锋','小小盲僧','刷出妖魔','二八星宿','天庭叛逆','刷出星宿','刷出星官','刷出天罡','刷出地煞','圣兽残魂','刷出知了','世界挑战','混世魔王','刷出桐人','魔化桐人','创世佛屠','善恶如来','开启异界','开启经宝','开启万象','开启生肖','门派开关','宝藏开关','镖王开关','游泳开关','开启病毒','开启帮战','结束帮战','开启比武','比武入场','结束比武','开启剑会','结束剑会','假人走动','假人摆摊','假人聊天','保存数据','关闭游戏'],
+
+                // 表单数据
+                forms: {
+                    account: { player_id: '', account: '', password: '', title: '' },
+                    recharge: { currencyType: '仙玉', currencyAmount: '100', gmLevel: 'GM1', gmLevelAmount: '1', gmCoinAmount: '100', baguaName: '乾', rechargeType: '充值经验', genericAmount: '100' },
+                    character: { 
+                        cultivation: { "攻击修炼": "", "法术修炼": "", "防御修炼": "", "抗法修炼": "" }, 
+                        life: { "强身术": "", "冥想": "", "强壮": "", "暗器技巧": "", "中药医理": "", "烹饪技巧": "", "打造技巧": "", "裁缝技巧": "", "炼金术": "", "淬灵之术": "", "养生之道": "", "健身术": "" }, 
+                        enhancement: { "人物伤害": "", "人物防御": "", "人物气血": "", "人物法术": "", "人物速度": "", "人物固伤": "", "人物治疗": "", "宠物伤害": "", "宠物防御": "", "宠物气血": "", "宠物灵力": "", "宠物速度": "" }, 
+                        petCultivation: { "攻击控制力": "", "法术控制力": "", "防御控制力": "", "抗法控制力": "", "玩家等级": "" } 
+                    },
+                    pet: { selected_index: '', selectedMountIndex: '', attrs: {}, skills: {}, innate: {}, mountModify: {}, mountSkills: ['', '', '', '', ''], petEquip: {} },
+                    equip: { tab: 'equip', type: '武器', ornamentType: '戒指', data: {}, affixData: { mainAttrName: '', mainAttrValue: '', affixes: [{name:'',value:''},{name:'',value:''},{name:'',value:''},{name:'',value:''}], effects: [{name:'',value:''},{name:'',value:''},{name:'',value:''}] }, ornamentData: { level: '', mainAttr: '', mainValue: '', attrs: [{name:'',value:''},{name:'',value:''},{name:'',value:''}], effects: [{name:'',value:''},{name:'',value:''},{name:'',value:''}] } },
+                    gift: { itemName: '', itemCount: '1', gemType: '太阳石', gemLevel: '1', gemMaxLevel: '', cdkType: '', cdkCount: '10', cdkDigits: '12', cdkCustom: '', rechargeTypes: [], rechargeCards: [] },
+                    game: { broadcast: '', rate: '', diff: '', cap: '' },
+                    activation: { code: '' }
+                },
+
+                // 字段定义
+                petFields: { attrs: ["等级", "模型", "种类", "成长", "攻击资质", "防御资质", "体力资质", "法力资质", "速度资质", "躲闪资质"] },
+                equipFields: ["等级", "气血", "魔法", "命中", "伤害", "防御", "速度", "灵力", "体质", "魔力", "力量", "耐力", "敏捷", "特效", "特技"],
+                characterFields: {
+                    cultivation: ["攻击修炼", "法术修炼", "防御修炼", "抗法修炼"],
+                    life: ["强身术", "冥想", "强壮", "暗器技巧", "中药医理", "烹饪技巧", "打造技巧", "裁缝技巧", "炼金术", "淬灵之术", "养生之道", "健身术"],
+                    enhancement: ["人物伤害", "人物防御", "人物气血", "人物法术", "人物速度", "人物固伤", "人物治疗", "宠物伤害", "宠物防御", "宠物气血", "宠物灵力", "宠物速度"],
+                    petCultivation: ["攻击控制力", "法术控制力", "防御控制力", "抗法控制力", "玩家等级"]
+                },
+                mountSkillsList: ["反震", "吸血", "反击", "连击", "飞行", "感知", "再生", "冥思", "慧根", "必杀", "幸运", "神迹", "招架", "永恒", "偷袭", "毒", "驱鬼", "鬼魂术", "魔之心", "神佑复生", "精神集中", "法术连击", "法术暴击", "法术波动", "土属性吸收", "火属性吸收", "水属性吸收"],
+
+                loginForm: { username: '', password: '' },
+
+                // 初始化
+                async init() {
+                    if (this.token) {
+                        try {
+                            const res = await this.api('/api/users/me');
+                            this.currentUser = res.user;
+                            this.isLoggedIn = true;
+                        } catch (e) { this.logout(); }
+                    }
+                    this.$nextTick(() => lucide.createIcons());
+                    this.$watch('currentModule', () => this.$nextTick(() => lucide.createIcons()));
+                    this.$watch('mobileMenuOpen', () => this.$nextTick(() => lucide.createIcons()));
+                    this.$watch('showConsole', () => this.$nextTick(() => lucide.createIcons()));
+                },
+
+                // API请求
+                async api(url, options = {}) {
+                    const headers = { 'Content-Type': 'application/json' };
+                    if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
+                    let responseData, status;
+                    try {
+                        const res = await fetch(url, { ...options, headers });
+                        status = res.status;
+                        responseData = await res.json();
+                        this.logToConsole(options.method || 'GET', url, status, responseData);
+                        if (!res.ok) throw new Error(responseData.detail || '请求失败');
+                        return responseData;
+                    } catch (e) {
+                        if (!status) this.logToConsole(options.method || 'GET', url, 0, { error: e.message });
+                        throw e;
+                    }
+                },
+
+                logToConsole(method, url, status, data) {
+                    this.consoleLogs.push({
+                        time: new Date().toLocaleTimeString(),
+                        title: `${method} ${url}`,
+                        status: status || 'ERR',
+                        type: status >= 400 || status === 0 ? 'error' : 'success',
+                        data: JSON.stringify(data, null, 2)
+                    });
+                    this.$nextTick(() => {
+                        const el = document.getElementById('consoleOutput');
+                        if (el) el.scrollTop = el.scrollHeight;
+                    });
+                },
+
+                clearLogs() { this.consoleLogs = []; },
+
+                // Toast
+                showToast(msg, type = 'info') {
+                    const id = ++this.toastId;
+                    this.toasts.push({ id, message: msg, type, show: true });
+                    this.$nextTick(() => lucide.createIcons());
+                    setTimeout(() => this.removeToast(id), 4000);
+                },
+
+                removeToast(id) {
+                    const toast = this.toasts.find(t => t.id === id);
+                    if (toast) toast.show = false;
+                    setTimeout(() => { this.toasts = this.toasts.filter(t => t.id !== id); }, 200);
+                },
+
+                // 权限检查
+                hasPermission(permissionCode) {
+                    if (!this.currentUser || !this.currentUser.permissions) return false;
+                    
+                    const permissions = this.currentUser.permissions;
+                    
+                    // 支持通配符
+                    if (permissions.includes('*')) return true;
+                    
+                    // 支持分类通配符，如 "account.*"
+                    const category = permissionCode.split('.')[0] || '';
+                    if (permissions.includes(`${category}.*`)) return true;
+                    
+                    // 精确匹配
+                    return permissions.includes(permissionCode);
+                },
+
+                // 登录/登出
+                async login() {
+                    this.loading = true;
+                    try {
+                        const data = await this.api('/api/users/login', { method: 'POST', body: JSON.stringify(this.loginForm) });
+                        this.token = data.access_token;
+                        localStorage.setItem('access_token', this.token);
+                        this.currentUser = data.user;
+                        this.isLoggedIn = true;
+                        this.showToast('登录成功', 'success');
+                        this.$nextTick(() => lucide.createIcons());
+                    } catch (e) { this.showToast(e.message, 'error'); }
+                    finally { this.loading = false; }
+                },
+
+                logout() {
+                    this.token = null;
+                    localStorage.removeItem('access_token');
+                    this.isLoggedIn = false;
+                    this.currentUser = null;
+                    this.$nextTick(() => lucide.createIcons());
+                },
+
+                // 角色ID历史
+                addPlayerIdToHistory() {
+                    const id = this.forms.account.player_id.trim();
+                    if (id && !this.playerIdHistory.includes(id)) {
+                        this.playerIdHistory.unshift(id);
+                        if (this.playerIdHistory.length > 10) this.playerIdHistory.pop();
+                    }
+                },
+
+                selectPlayerIdFromHistory() {
+                    if (this.selectedPlayerIdHistory) {
+                        this.forms.account.player_id = this.selectedPlayerIdHistory;
+                        this.selectedPlayerIdHistory = '';
+                    }
+                },
+
+                updateGmLevelAmount() {
+                    this.forms.recharge.gmLevelAmount = this.forms.recharge.gmLevel.replace('GM', '');
+                },
+
+                // 账号操作
+                async runAccountCmd(cmd, idType, useExtra = false) {
+                    const id = this.forms.account[idType];
+                    if (!id) return this.showToast('请输入ID/账号', 'error');
+                    const payload = { function: 'manage_account', args: { command: cmd, target_id: id, id_type: idType === 'player_id' ? '角色ID' : '账号' } };
+                    if (useExtra) {
+                        if (cmd === '修改密码') payload.args.extra = this.forms.account.password;
+                        if (cmd === '给予称谓') payload.args.extra = this.forms.account.title;
+                    }
+                    const result = await this.sendRequest('/api/account', payload);
+                    if (cmd === '玩家信息' && result && result.data) this.playerInfo = result.data;
+                },
+
+                async sendTravelFee() {
+                    const acc = this.forms.account.account, pid = this.forms.account.player_id;
+                    if (!acc || !pid) return this.showToast('请输入账号和角色ID', 'error');
+                    await this.sendRequest('/api/account', { function: 'send_travel_fee', args: { account: acc, player_id: pid } });
+                },
+
+                // 充值操作
+                async rechargeCurrency() {
+                    const pid = this.forms.account.player_id;
+                    if (!pid) return this.showToast('请输入角色ID', 'error');
+                    await this.sendRequest('/api/account', { function: 'recharge_currency', args: { player_id: pid, currency_type: this.forms.recharge.currencyType, amount: parseInt(this.forms.recharge.currencyAmount) || 0 } });
+                },
+
+                async rechargeGmLevel() {
+                    const pid = this.forms.account.player_id;
+                    if (!pid) return this.showToast('请输入角色ID', 'error');
+                    await this.sendRequest('/api/account', { function: 'recharge_gm_level', args: { player_id: pid, amount: parseInt(this.forms.recharge.gmLevelAmount) || 0, gm_level: this.forms.recharge.gmLevel } });
+                },
+
+                async rechargeGmCoin() {
+                    const pid = this.forms.account.player_id;
+                    if (!pid) return this.showToast('请输入角色ID', 'error');
+                    await this.sendRequest('/api/account', { function: 'recharge_gm_coin', args: { player_id: pid, amount: parseInt(this.forms.recharge.gmCoinAmount) || 0 } });
+                },
+
+                async rechargeGeneric() {
+                    const pid = this.forms.account.player_id;
+                    if (!pid) return this.showToast('请输入角色ID', 'error');
+                    const type = this.forms.recharge.rechargeType, amount = parseInt(this.forms.recharge.genericAmount) || 0;
+                    const skillTypes = ['充值经验', '充值累充', '打造熟练', '裁缝熟练', '炼金熟练', '淬灵熟练'];
+                    const factionTypes = ['充值帮贡', '充值门贡', '活跃积分', '比武积分'];
+                    if (skillTypes.includes(type)) await this.sendRequest('/api/account', { function: 'recharge_skill', args: { player_id: pid, amount, skill_type: type } });
+                    else if (factionTypes.includes(type)) await this.sendRequest('/api/account', { function: 'recharge_faction', args: { player_id: pid, amount, faction_type: type } });
+                },
+
+                async getRechargeRecord() {
+                    const pid = this.forms.account.player_id;
+                    if (!pid) return this.showToast('请输入角色ID', 'error');
+                    await this.sendRequest('/api/account', { function: 'recharge_record', args: { player_id: pid } });
+                },
+
+                async setBagua() {
+                    await this.sendRequest('/api/account', { function: 'set_bagua', args: { bagua_name: this.forms.recharge.baguaName } });
+                },
+
+                // 宝宝操作
+                async getPetInfo() {
+                    const charId = this.forms.account.player_id;
+                    if (!charId) return this.showToast('请输入角色ID', 'error');
+                    try {
+                        const res = await this.api('/api/pet', { method: 'POST', body: JSON.stringify({ function: 'get_pet_info', args: { char_id: charId } }) });
+                        if (res.status === 'success' && res.data?.length > 0) {
+                            const petDataObj = res.data.find(item => item.seq_no === 11);
+                            if (petDataObj?.content) {
+                                const content = parseLuaTable(petDataObj.content);
+                                this.petData = Object.values(content).filter(item => typeof item === 'object' && item !== null && item['名称']);
+                                this.showToast(`获取成功，共 ${this.petData.length} 只宝宝`, 'success');
+                            } else { this.petData = []; this.showToast('当前角色没有宝宝', 'success'); }
+                        } else { this.petData = []; this.showToast('当前角色没有宝宝', 'success'); }
+                    } catch (e) { this.showToast(e.message, 'error'); }
+                },
+
+                onPetSelected() {
+                    const idx = parseInt(this.forms.pet.selected_index);
+                    if (isNaN(idx) || idx < 0 || idx >= this.petData.length) return;
+                    const pet = this.petData[idx];
+                    this.petFields.attrs.forEach(f => { this.forms.pet.attrs[f] = pet[f] !== undefined ? pet[f] : ''; });
+                    const skills = pet['技能'] || {};
+                    for (let i = 1; i <= 20; i++) { this.forms.pet.skills['技能' + (i < 10 ? '0' + i : i)] = skills[i] || ''; }
+                    const innate = pet['天生技能'] || {};
+                    for (let i = 1; i <= 4; i++) { this.forms.pet.innate['天生0' + i] = innate[i] || ''; }
+                },
+
+                async modifyPet() {
+                    const charId = this.forms.account.player_id, petIdx = this.forms.pet.selected_index;
+                    if (!charId || petIdx === '') return this.showToast('请选择宝宝并确保输入了角色ID', 'error');
+                    await this.sendRequest('/api/pet', { function: 'modify_pet', args: { char_id: charId, pet_index: parseInt(petIdx) + 1, modify_data: { ...this.forms.pet.attrs } } });
+                },
+
+                async getMount() {
+                    const charId = this.forms.account.player_id;
+                    if (!charId) return this.showToast('请输入角色ID', 'error');
+                    try {
+                        const res = await this.api('/api/pet', { method: 'POST', body: JSON.stringify({ function: 'get_mount', args: { char_id: charId } }) });
+                        if (res.status === 'success' && res.data?.length > 0) {
+                            const mountDataObj = res.data.find(item => item.seq_no === 14);
+                            if (mountDataObj?.content) {
+                                const parsedData = parseLuaTable(mountDataObj.content);
+                                this.mountData = Object.keys(parsedData).map(key => parsedData[key]).filter(item => typeof item === 'object' && item !== null && item['名称']);
+                                this.showToast(`获取成功，共 ${this.mountData.length} 个坐骑`, 'success');
+                            } else { this.mountData = []; this.showToast('当前角色没有坐骑', 'success'); }
+                        } else { this.mountData = []; this.showToast('当前角色没有坐骑', 'success'); }
+                    } catch (e) { this.showToast(e.message, 'error'); }
+                },
+
+                onMountSelected() {
+                    const idx = parseInt(this.forms.pet.selectedMountIndex);
+                    if (isNaN(idx) || idx < 0 || idx >= this.mountData.length) return;
+                    const mount = this.mountData[idx];
+                    this.forms.pet.mountModify['等级'] = mount['等级'] || '';
+                    this.forms.pet.mountModify['成长'] = mount['成长'] || '';
+                    this.forms.pet.mountModify['技能点'] = mount['技能点'] || '';
+                    const skills = mount['技能'] || {};
+                    this.forms.pet.mountSkills = ['', '', '', '', ''];
+                    Object.keys(skills).forEach(key => { const i = parseInt(key) - 1; if (i >= 0 && i < 5 && skills[key]) this.forms.pet.mountSkills[i] = skills[key]; });
+                },
+
+                async modifyMount() {
+                    const charId = this.forms.account.player_id;
+                    if (!charId) return this.showToast('请输入角色ID', 'error');
+                    const idx = parseInt(this.forms.pet.selectedMountIndex);
+                    if (isNaN(idx) || idx < 0) return this.showToast('请选择要修改的坐骑', 'error');
+                    const skillData = {};
+                    this.forms.pet.mountSkills.forEach((skill, i) => { if (skill?.trim()) skillData[i + 1] = skill; });
+                    await this.sendRequest('/api/pet', { function: 'modify_mount', args: { char_id: charId, mount_data: { ...this.forms.pet.mountModify, 技能: skillData, 编号: idx + 1 } } });
+                },
+
+                async customPetEquip() {
+                    const charId = this.forms.account.player_id;
+                    if (!charId) return this.showToast('请输入角色ID', 'error');
+                    await this.sendRequest('/api/pet', { function: 'custom_pet_equip', args: { char_id: charId, equip_data: { ...this.forms.pet.petEquip } } });
+                },
+
+                async activateMerit() {
+                    const charId = this.forms.account.player_id;
+                    if (!charId) return this.showToast('请输入角色ID', 'error');
+                    await this.sendRequest('/api/pet', { function: 'activate_merit', args: { char_id: charId } });
+                },
+
+                async modifyMerit() {
+                    const charId = this.forms.account.player_id;
+                    if (!charId) return this.showToast('请输入角色ID', 'error');
+                    await this.sendRequest('/api/pet', { function: 'modify_merit', args: { char_id: charId, modify_data: {} } });
+                },
+
+                // 装备操作
+                async getEquip() {
+                    const charId = this.forms.account.player_id;
+                    if (!charId) return this.showToast('请输入角色ID', 'error');
+                    await this.sendRequest('/api/equipment', { function: 'get_equipment', args: { char_id: charId } });
+                },
+
+                async sendEquip() {
+                    const charId = this.forms.account.player_id;
+                    if (!charId) return this.showToast('请输入角色ID', 'error');
+                    await this.sendRequest('/api/equipment', { function: 'send_equipment', args: { char_id: charId, equip_data: { ...this.forms.equip.data, type: this.forms.equip.type } } });
+                },
+
+                async getAffix() {
+                    const charId = this.forms.account.player_id;
+                    if (!charId) return this.showToast('请输入角色ID', 'error');
+                    await this.sendRequest('/api/equipment', { function: 'get_affix', args: { char_id: charId } });
+                },
+
+                async sendAffix() {
+                    const charId = this.forms.account.player_id;
+                    if (!charId) return this.showToast('请输入角色ID', 'error');
+                    const a = this.forms.equip.affixData;
+                    const data = { 主属性: a.mainAttrName && a.mainAttrValue ? { 属性: a.mainAttrName, 数值: parseInt(a.mainAttrValue) || 0 } : undefined, 词条: {}, 特效: {} };
+                    a.affixes.forEach((f, i) => { if (f.name && f.value) data.词条[i + 1] = { 词条: f.name, 数值: parseInt(f.value) || 0 }; });
+                    a.effects.forEach((f, i) => { if (f.name && f.value) data.特效[i + 1] = { 特效: f.name, 数值: parseInt(f.value) || 0 }; });
+                    await this.sendRequest('/api/equipment', { function: 'send_affix', args: { char_id: charId, affix_data: data } });
+                },
+
+                async getOrnament() {
+                    const charId = this.forms.account.player_id;
+                    if (!charId) return this.showToast('请输入角色ID', 'error');
+                    await this.sendRequest('/api/equipment', { function: 'get_ornament', args: { char_id: charId } });
+                },
+
+                async sendOrnament() {
+                    const charId = this.forms.account.player_id;
+                    if (!charId) return this.showToast('请输入角色ID', 'error');
+                    const od = this.forms.equip.ornamentData;
+                    const data = { 等级: od.level, 主属性: { 属性: od.mainAttr, 数值: parseInt(od.mainValue) || 0 }, 词条: {}, 特效: {} };
+                    od.attrs.forEach((a, i) => { if (a.name && a.value) data.词条[i + 1] = { 词条: a.name, 数值: parseInt(a.value) || 0 }; });
+                    od.effects.forEach((e, i) => { if (e.name && e.value) data.特效[i + 1] = { 特效: e.name, 数值: parseInt(e.value) || 0 }; });
+                    await this.sendRequest('/api/equipment', { function: 'send_ornament', args: { char_id: charId, ornament_data: data } });
+                },
+
+                // 物品操作
+                async giveItem() {
+                    const charId = this.forms.account.player_id;
+                    if (!charId) return this.showToast('请输入角色ID', 'error');
+                    await this.sendRequest('/api/gift', { function: 'give_item', args: { player_id: charId, item_name: this.forms.gift.itemName, count: this.forms.gift.itemCount } });
+                },
+
+                // 使用激活码
+                async useActivationCode() {
+                    const code = this.forms.activation.code;
+                    if (!code) return this.showToast('请输入激活码', 'error');
+                    try {
+                        const res = await this.api('/api/activation/use', {
+                            method: 'POST',
+                            body: JSON.stringify({ code })
+                        });
+                        this.showToast(res.message, 'success');
+                        this.forms.activation.code = '';
+                        // 更新当前用户信息
+                        const userRes = await this.api('/api/users/me');
+                        this.currentUser = userRes.user;
+                    } catch (e) {
+                        this.showToast(e.message, 'error');
+                    }
+                },
+
+                async giveGem() {
+                    const charId = this.forms.account.player_id;
+                    if (!charId) return this.showToast('请输入角色ID', 'error');
+                    await this.sendRequest('/api/gift', { function: 'give_gem', args: { player_id: charId, gem_name: this.forms.gift.gemType, min_level: this.forms.gift.gemLevel } });
+                },
+
+                async loadRechargeTypes() {
+                    try {
+                        const res = await this.api('/api/gift', { method: 'POST', body: JSON.stringify({ function: 'get_recharge_types', args: {} }) });
+                        if (res.status === 'success' && res.data?.length > 0) {
+                            const cdkDataObj = res.data.find(item => item.seq_no === 12);
+                            if (cdkDataObj?.content) {
+                                const cdkTypes = [];
+                                const typeRegex = /\[(\d+)\]="([^"]+)"/g;
+                                let match;
+                                while ((match = typeRegex.exec(cdkDataObj.content)) !== null) cdkTypes.push(match[2]);
+                                this.forms.gift.rechargeTypes = cdkTypes;
+                                this.showToast(`获取成功，共 ${cdkTypes.length} 种CDK类型`, 'success');
+                            } else { this.forms.gift.rechargeTypes = []; this.showToast('当前没有CDK类型', 'success'); }
+                        } else { this.forms.gift.rechargeTypes = []; this.showToast('当前没有CDK类型', 'success'); }
+                    } catch (e) { this.showToast(e.message, 'error'); }
+                },
+
+                async loadRechargeCards() {
+                    if (!this.forms.gift.cdkType) return this.showToast('请选择充值类型', 'error');
+                    try {
+                        const res = await this.api('/api/gift', { method: 'POST', body: JSON.stringify({ function: 'get_recharge_card', args: { selected_type: this.forms.gift.cdkType } }) });
+                        if (res.status === 'success' && res.data?.length > 0) {
+                            const cardDataObj = res.data.find(item => item.seq_no === 12);
+                            if (cardDataObj?.content) {
+                                const cardNumbers = [];
+                                const cardRegex = /\[(\d+)\]="([^"]+)"/g;
+                                let match;
+                                while ((match = cardRegex.exec(cardDataObj.content)) !== null) cardNumbers.push(match[2]);
+                                this.forms.gift.rechargeCards = cardNumbers;
+                                this.showToast(`获取成功，共 ${cardNumbers.length} 个卡号`, 'success');
+                            } else { this.forms.gift.rechargeCards = []; this.showToast('当前没有卡号', 'success'); }
+                        } else { this.forms.gift.rechargeCards = []; this.showToast('当前没有卡号', 'success'); }
+                    } catch (e) { this.showToast(e.message, 'error'); }
+                },
+
+                async generateCdk() {
+                    if (!this.forms.gift.cdkType) return this.showToast('请选择充值类型', 'error');
+                    await this.sendRequest('/api/gift', { function: 'generate_cdk', args: { selected_type: this.forms.gift.cdkType, gen_data: { 数量: parseInt(this.forms.gift.cdkCount) || 0, 位数: parseInt(this.forms.gift.cdkDigits) || 0 } } });
+                },
+
+                async generateCustomCdk() {
+                    if (!this.forms.gift.cdkType) return this.showToast('请选择充值类型', 'error');
+                    await this.sendRequest('/api/gift', { function: 'generate_custom_cdk', args: { selected_type: this.forms.gift.cdkType, gen_data: { 数量: parseInt(this.forms.gift.cdkCount) || 0, 位数: parseInt(this.forms.gift.cdkDigits) || 0, 自定义内容: this.forms.gift.cdkCustom || '' } } });
+                },
+
+                async newRechargeType() {
+                    if (!this.forms.gift.cdkType) return this.showToast('请输入类型名称', 'error');
+                    await this.sendRequest('/api/gift', { function: 'new_recharge_type', args: { type_name: this.forms.gift.cdkType } });
+                },
+
+                async delRechargeType() {
+                    if (!this.forms.gift.cdkType) return this.showToast('请选择充值类型', 'error');
+                    await this.sendRequest('/api/gift', { function: 'del_recharge_type', args: { selected_type: this.forms.gift.cdkType, type_name: this.forms.gift.cdkType } });
+                },
+
+                // 游戏操作
+                async sendBroadcast(type) {
+                    const content = this.forms.game.broadcast;
+                    if (!content) return this.showToast('请输入内容', 'error');
+                    await this.sendRequest('/api/game', { function: type === '广播' ? 'send_broadcast' : 'send_announcement', args: { content } });
+                },
+
+                async setGameSetting(type) {
+                    let func, val;
+                    if (type === '经验倍率') { func = 'set_exp_rate'; val = this.forms.game.rate; }
+                    else if (type === '游戏难度') { func = 'set_difficulty'; val = this.forms.game.diff; }
+                    else if (type === '等级上限') { func = 'set_level_cap'; val = this.forms.game.cap; }
+                    if (!val) return this.showToast('请输入数值', 'error');
+                    await this.sendRequest('/api/game', { function: func, args: { rate: val } });
+                },
+
+                async triggerActivity(actName) {
+                    await this.sendRequest('/api/game', { function: 'trigger_activity', args: { activity_name: actName } });
+                },
+
+                // 角色操作
+                async getCharacterInfo() {
+                    const pid = this.forms.account.player_id;
+                    if (!pid) return this.showToast('请输入角色ID', 'error');
+                    try {
+                        const res = await this.api('/api/character', { method: 'POST', body: JSON.stringify({ function: 'get_character_info', args: { char_id: pid } }) });
+                        if (res.status === 'success' && res.data?.[0]?.content) {
+                            const data = parseLuaTable(res.data[0].content);
+                            if (data.修炼) {
+                                this.forms.character.cultivation['攻击修炼'] = data.修炼['攻击修炼']?.[1] || '';
+                                this.forms.character.cultivation['法术修炼'] = data.修炼['法术修炼']?.[1] || '';
+                                this.forms.character.cultivation['防御修炼'] = data.修炼['防御修炼']?.[1] || '';
+                                this.forms.character.cultivation['抗法修炼'] = data.修炼['抗法修炼']?.[1] || '';
+                            }
+                            if (data.生活技能) Object.entries(data.生活技能).forEach(([k, v]) => { this.forms.character.life[k] = v; });
+                            if (data.强化技能) Object.entries(data.强化技能).forEach(([k, v]) => { this.forms.character.enhancement[k] = v; });
+                            if (data.bb修炼) {
+                                this.forms.character.petCultivation['攻击控制力'] = data.bb修炼['攻击控制力']?.[1] || '';
+                                this.forms.character.petCultivation['法术控制力'] = data.bb修炼['法术控制力']?.[1] || '';
+                                this.forms.character.petCultivation['防御控制力'] = data.bb修炼['防御控制力']?.[1] || '';
+                                this.forms.character.petCultivation['抗法控制力'] = data.bb修炼['抗法控制力']?.[1] || '';
+                                this.forms.character.petCultivation['玩家等级'] = data.bb修炼['玩家等级']?.[1] || '';
+                            }
+                            this.showToast('角色信息获取成功', 'success');
+                        }
+                    } catch (e) { this.showToast(e.message, 'error'); }
+                },
+
+                async recoverCharacterProps() {
+                    const pid = this.forms.account.player_id;
+                    if (!pid) return this.showToast('请输入角色ID', 'error');
+                    await this.sendRequest('/api/character', { function: 'recover_character_props', args: { char_id: pid } });
+                },
+
+                async modifyCharacter() {
+                    const pid = this.forms.account.player_id;
+                    if (!pid) return this.showToast('请输入角色ID', 'error');
+                    const sections = [
+                        { name: '角色修炼', data: this.forms.character.cultivation },
+                        { name: '角色生活', data: this.forms.character.life },
+                        { name: '角色强化', data: this.forms.character.enhancement },
+                        { name: '召唤兽修炼', data: this.forms.character.petCultivation },
+                    ];
+                    const parts = [];
+                    try {
+                        sections.forEach(sec => {
+                            const kvs = Object.entries(sec.data)
+                                .filter(([k, v]) => v !== undefined && v !== null && String(v).trim() !== '')
+                                .map(([k, v]) => {
+                                    const s = String(v).trim();
+                                    if (!/^\d+$/.test(s)) throw new Error(`${sec.name} - ${k} 必须为纯数字`);
+                                    return `["${k}"]="${s}"`;
+                                });
+                            if (kvs.length) parts.push(`["${sec.name}"]={` + kvs.join(',') + `}`);
+                        });
+                    } catch (e) { return this.showToast(e.message, 'error'); }
+                    if (!parts.length) return this.showToast('没有输入任何修改数据', 'error');
+                    await this.sendRequest('/api/character', { function: 'modify_character', args: { char_id: pid, modify_data_str: '{' + parts.join(',') + '}' } });
+                },
+
+                // 通用请求
+                async sendRequest(url, payload) {
+                    try {
+                        const res = await this.api(url, { method: 'POST', body: JSON.stringify(payload) });
+                        if (res?.data && Array.isArray(res.data)) {
+                            res.data.forEach(it => { if (it?.content && typeof it.content === 'string') this.showToast(it.content, 'success'); });
+                        } else if (res?.message) {
+                            this.showToast(res.message, 'success');
+                        } else {
+                            this.showToast('执行成功', 'success');
+                        }
+                        return res;
+                    } catch (e) { this.showToast(e.message, 'error'); throw e; }
+                }
+            }
+        }
+    </script>
+</body>
+</html>
+                                                

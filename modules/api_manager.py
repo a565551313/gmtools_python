@@ -81,15 +81,12 @@ class APIManager(QObject):
         self.port = self.config_manager.get("api_port", 8000)
         self.auto_start = self.config_manager.get("api_auto_start", False)
         self.known_hosts = self.config_manager.get("api_known_hosts", ["127.0.0.1", "0.0.0.0"])
-        self.token = self.config_manager.get("api_token", "")
         
-    def save_config(self, host, port, auto_start, token=None):
+    def save_config(self, host, port, auto_start):
         """保存配置"""
         self.host = host
         self.port = port
         self.auto_start = auto_start
-        if token is not None:
-            self.token = token
         
         # 更新已知主机列表
         if host not in self.known_hosts:
@@ -99,8 +96,6 @@ class APIManager(QObject):
         self.config_manager.set("api_port", port)
         self.config_manager.set("api_auto_start", auto_start)
         self.config_manager.set("api_known_hosts", self.known_hosts)
-        if token is not None:
-            self.config_manager.set("api_token", token)
         self.config_manager.save_config()
         
     def restart_service(self):
@@ -175,3 +170,16 @@ class APIManager(QObject):
 
     def is_running(self):
         return self.thread is not None and self.thread.isRunning()
+    
+    def open_user_management(self):
+        """在浏览器中打开用户管理页面"""
+        import webbrowser
+        url = f"http://{self.host}:{self.port}/user-management"
+        try:
+            webbrowser.open(url)
+            self.log_received.emit(f"正在打开用户管理页面: {url}")
+            return True
+        except Exception as e:
+            self.log_received.emit(f"打开用户管理页面失败: {e}")
+            return False
+

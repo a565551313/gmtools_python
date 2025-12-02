@@ -32,46 +32,76 @@
             overflow: hidden;
         }
 
-        /* Header */
         .header {
-            height: 40px;
+            height: 50px;
             background-color: var(--header-bg);
             display: flex;
             align-items: center;
             padding: 0 20px;
             border-bottom: 1px solid var(--border-color);
             font-size: 14px;
+            justify-content: space-between;
         }
 
         .header-title {
             font-weight: bold;
-            margin-right: 20px;
         }
 
-        .global-setting {
+        .auth-section {
             display: flex;
             align-items: center;
-            margin-left: auto;
+            gap: 10px;
         }
 
-        .global-setting input {
+        .auth-section input {
             background-color: var(--input-bg);
             border: 1px solid var(--border-color);
             color: white;
-            padding: 4px 8px;
+            padding: 6px 10px;
             border-radius: 2px;
-            width: 200px;
-            margin-left: 10px;
+            width: 150px;
         }
 
-        /* Main Layout */
+        .auth-section button {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 2px;
+            cursor: pointer;
+            font-size: 12px;
+            background-color: var(--accent-color);
+            color: white;
+        }
+
+        .auth-section button:hover {
+            background-color: var(--accent-hover);
+        }
+
+        .auth-section .logout-btn {
+            background-color: #d13438;
+        }
+
+        .auth-status {
+            padding: 4px 10px;
+            border-radius: 2px;
+            font-size: 12px;
+        }
+
+        .auth-status.logged-in {
+            background-color: var(--success-color);
+            color: #000;
+        }
+
+        .auth-status.logged-out {
+            background-color: var(--error-color);
+            color: #000;
+        }
+
         .container {
             display: flex;
             flex: 1;
             overflow: hidden;
         }
 
-        /* Sidebar */
         .sidebar {
             width: 200px;
             background-color: var(--sidebar-bg);
@@ -113,7 +143,6 @@
             border-left: 3px solid var(--accent-color);
         }
 
-        /* Content Area */
         .content {
             flex: 1;
             display: flex;
@@ -121,7 +150,6 @@
             background-color: var(--panel-bg);
         }
 
-        /* Function Tabs/List */
         .function-bar {
             background-color: var(--sidebar-bg);
             border-bottom: 1px solid var(--border-color);
@@ -152,7 +180,6 @@
             border-color: var(--accent-color);
         }
 
-        /* Form Area */
         .form-area {
             flex: 1;
             padding: 20px;
@@ -186,13 +213,6 @@
             outline: none;
         }
 
-        .form-hint {
-            font-size: 12px;
-            color: #858585;
-            margin-top: 4px;
-        }
-
-        /* Action Bar */
         .action-bar {
             padding: 15px 20px;
             border-top: 1px solid var(--border-color);
@@ -218,7 +238,6 @@
             background-color: var(--accent-hover);
         }
 
-        /* Console */
         .console-panel {
             height: 250px;
             background-color: var(--console-bg);
@@ -279,7 +298,6 @@
             display: block;
         }
 
-        /* Scrollbar */
         ::-webkit-scrollbar {
             width: 10px;
             height: 10px;
@@ -296,34 +314,91 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #4f4f4f;
         }
+
+        .login-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .login-modal.show {
+            display: flex;
+        }
+
+        .login-box {
+            background: var(--sidebar-bg);
+            padding: 30px;
+            border-radius: 8px;
+            width: 350px;
+            border: 1px solid var(--border-color);
+        }
+
+        .login-box h2 {
+            margin-top: 0;
+            color: white;
+        }
+
+        .login-box input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            background-color: var(--input-bg);
+            border: 1px solid var(--border-color);
+            color: white;
+            border-radius: 2px;
+        }
+
+        .login-box button {
+            width: 100%;
+            padding: 10px;
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 2px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .login-box button:hover {
+            background-color: var(--accent-hover);
+        }
+
+        .login-error {
+            color: var(--error-color);
+            margin-bottom: 10px;
+            font-size: 12px;
+        }
     </style>
 </head>
 
 <body>
-
     <div class="header">
-        <div class="header-title">GMTools API 调试器</div>
-        <div class="global-setting">
-            <label>API Token:</label>
-            <input type="text" id="apiToken" value="my_secret_token">
+        <div class="header-title">🎮 GMTools API 调试器 (需要登录)</div>
+        <div class="auth-section">
+            <span class="auth-status logged-out" id="authStatus">未登录</span>
+            <button onclick="showLoginModal()" id="loginBtn">登录</button>
+            <button onclick="logout()" id="logoutBtn" class="logout-btn" style="display:none;">退出</button>
         </div>
     </div>
 
     <div class="container">
         <div class="sidebar">
             <div class="sidebar-header">Modules</div>
-            <ul class="module-list" id="moduleList">
-                <!-- Modules injected here -->
-            </ul>
+            <ul class="module-list" id="moduleList"></ul>
         </div>
 
         <div class="content">
-            <div class="function-bar" id="functionBar">
-                <!-- Functions injected here -->
-            </div>
+            <div class="function-bar" id="functionBar"></div>
 
             <div class="form-area" id="formArea">
-                <h2 id="currentFuncTitle" style="margin-top:0; font-size:18px; color:white;">请选择一个功能</h2>
+                <h2 id="currentFuncTitle" style="margin-top:0; font-size:18px; color:white;">请先登录，然后选择一个功能</h2>
                 <div id="formInputs"></div>
             </div>
 
@@ -338,24 +413,35 @@
                     <button class="btn" style="background:none; color:#ccc; padding:2px;"
                         onclick="clearConsole()">清空</button>
                 </div>
-                <div class="console-output" id="consoleOutput">
-                    <!-- Logs here -->
-                </div>
+                <div class="console-output" id="consoleOutput"></div>
             </div>
+        </div>
+    </div>
+
+    <!-- 登录模态框 -->
+    <div class="login-modal" id="loginModal">
+        <div class="login-box">
+            <h2>登录 GMTools</h2>
+            <div class="login-error" id="loginError"></div>
+            <input type="text" id="loginUsername" placeholder="用户名" />
+            <input type="password" id="loginPassword" placeholder="密码" />
+            <button onclick="doLogin()">登录</button>
         </div>
     </div>
 
     <script>
         const API_BASE = '/api';
+        let accessToken = localStorage.getItem('api_tester_token') || null;
+        let currentUser = null;
 
         const MODULES = {
             account: {
                 name: "账号管理",
                 funcs: [
-                    { func: 'recharge_currency', name: '充值货币', args: { account: 'test_user', currency_type: 'yuanbao', amount: 1000 } },
+                    { func: 'recharge_currency', name: '充值货币', args: { player_id: '123456', currency_type: '仙玉', amount: 1000 } },
                     { func: 'send_travel_fee', name: '发送路费', args: { account: 'test_user', player_id: '123456' } },
-                    { func: 'recharge_gm_level', name: '充值GM等级', args: { player_id: '123456', amount: 100, gm_level: '1' } },
-                    { func: 'manage_account', name: '账号管理', args: { command: 'ban_account', target_id: 'test_user', id_type: '账号' } },
+                    { func: 'recharge_gm_level', name: '充值GM等级', args: { player_id: '123456', amount: 100, gm_level: 'GM1' } },
+                    { func: 'manage_account', name: '账号管理', args: { command: '封禁账号', target_id: 'test_user', id_type: '账号' } },
                     { func: 'change_password', name: '修改密码', args: { account: 'test_user', new_password: 'new_password123' } },
                     { func: 'give_title', name: '给予称谓', args: { player_id: '123456', title: '至尊VIP' } },
                     { func: 'recharge_skill', name: '充值经验/技能', args: { player_id: '123456', amount: 10000, skill_type: '充值经验' } },
@@ -384,11 +470,16 @@
                 ]
             },
             gift: {
-                name: "物品赠送",
+                name: "物品赠送 (已加安全验证)",
                 funcs: [
-                    { func: 'give_item', name: '赠送道具', args: { player_id: '123456', item_id: 'item_001', count: 10 } },
-                    { func: 'give_gem', name: '赠送宝石', args: { player_id: '123456', gem_id: 'gem_001', count: 5 } },
-                    { func: 'generate_cdk', name: '生成CDK', args: { type: 'gift_1', count: 10 } }
+                    { func: 'give_item', name: '赠送道具', args: { player_id: '123456', item_name: '神兵', count: 10, item_category: 'default' } },
+                    { func: 'give_gem', name: '赠送宝石', args: { player_id: '123456', gem_name: '太阳石', min_level: 1, max_level: 10 } },
+                    { func: 'get_recharge_types', name: '获取充值类型', args: {} },
+                    { func: 'get_recharge_card', name: '获取充值卡号', args: { selected_type: 'vip_card' } },
+                    { func: 'generate_cdk', name: '生成CDK', args: { selected_type: 'gift_1', gen_data: { count: 10, value: 100 } } },
+                    { func: 'generate_custom_cdk', name: '生成自定义CDK', args: { selected_type: 'custom_1', gen_data: { count: 5, items: ['道具1', '道具2'] } } },
+                    { func: 'new_recharge_type', name: '新建充值类型', args: { type_name: 'new_vip' } },
+                    { func: 'del_recharge_type', name: '删除充值类型', args: { selected_type: 'old_vip', type_name: 'old_vip' } }
                 ]
             },
             character: {
@@ -402,15 +493,117 @@
             game: {
                 name: "游戏管理",
                 funcs: [
-                    { func: 'send_broadcast', name: '发送广播', args: { content: '测试广播' } },
-                    { func: 'send_announcement', name: '发送公告', args: { content: '测试公告' } },
-                    { func: 'set_exp_rate', name: '设置经验倍率', args: { rate: '2.0' } }
+                    { func: 'send_broadcast', name: '发送广播', args: { content: '测试广播消息' } },
+                    { func: 'send_announcement', name: '发送公告', args: { content: '测试系统公告' } },
+                    { func: 'set_exp_rate', name: '设置经验倍率', args: { rate: '2.0' } },
+                    { func: 'set_difficulty', name: '设置游戏难度', args: { rate: '1.5' } },
+                    { func: 'set_level_cap', name: '设置等级上限', args: { rate: '200' } },
+                    { func: 'trigger_activity', name: '触发活动', args: { activity_name: '双倍经验' } }
                 ]
             }
         };
 
         let currentModule = 'account';
         let currentFunc = null;
+
+        // 页面加载时检查登录状态
+        window.addEventListener('DOMContentLoaded', async () => {
+            if (accessToken) {
+                await checkAuth();
+            }
+            init();
+        });
+
+        async function checkAuth() {
+            try {
+                const response = await fetch('/api/users/me', {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    currentUser = data.user;
+                    updateAuthUI(true);
+                    log(`自动登录成功: ${currentUser.username}`, 'success');
+                } else {
+                    accessToken = null;
+                    localStorage.removeItem('api_tester_token');
+                    updateAuthUI(false);
+                }
+            } catch (e) {
+                accessToken = null;
+                localStorage.removeItem('api_tester_token');
+                updateAuthUI(false);
+            }
+        }
+
+        function showLoginModal() {
+            document.getElementById('loginModal').classList.add('show');
+            document.getElementById('loginError').textContent = '';
+        }
+
+        function hideLoginModal() {
+            document.getElementById('loginModal').classList.remove('show');
+        }
+
+        async function doLogin() {
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            const errorEl = document.getElementById('loginError');
+
+            if (!username || !password) {
+                errorEl.textContent = '请输入用户名和密码';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/users/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    accessToken = data.access_token;
+                    currentUser = data.user;
+                    localStorage.setItem('api_tester_token', accessToken);
+                    updateAuthUI(true);
+                    hideLoginModal();
+                    log(`登录成功: ${currentUser.username} (Level ${currentUser.level})`, 'success');
+                } else {
+                    errorEl.textContent = data.detail || '登录失败';
+                }
+            } catch (e) {
+                errorEl.textContent = `登录错误: ${e.message}`;
+            }
+        }
+
+        function logout() {
+            accessToken = null;
+            currentUser = null;
+            localStorage.removeItem('api_tester_token');
+            updateAuthUI(false);
+            log('已退出登录', 'info');
+        }
+
+        function updateAuthUI(isLoggedIn) {
+            const statusEl = document.getElementById('authStatus');
+            const loginBtn = document.getElementById('loginBtn');
+            const logoutBtn = document.getElementById('logoutBtn');
+
+            if (isLoggedIn && currentUser) {
+                statusEl.textContent = `${currentUser.username} (Lv.${currentUser.level})`;
+                statusEl.className = 'auth-status logged-in';
+                loginBtn.style.display = 'none';
+                logoutBtn.style.display = 'block';
+            } else {
+                statusEl.textContent = '未登录';
+                statusEl.className = 'auth-status logged-out';
+                loginBtn.style.display = 'block';
+                logoutBtn.style.display = 'none';
+            }
+        }
 
         function init() {
             const moduleList = document.getElementById('moduleList');
@@ -426,14 +619,11 @@
 
         function selectModule(moduleName) {
             currentModule = moduleName;
-
-            // Update sidebar active state
             document.querySelectorAll('.module-item').forEach(el => {
                 el.classList.remove('active');
                 if (el.innerText.includes(`(${moduleName})`)) el.classList.add('active');
             });
 
-            // Render function bar
             const functionBar = document.getElementById('functionBar');
             functionBar.innerHTML = '';
             const funcs = MODULES[moduleName].funcs;
@@ -444,15 +634,12 @@
                 btn.innerText = f.name;
                 btn.onclick = () => selectFunction(f);
                 functionBar.appendChild(btn);
-
                 if (index === 0) selectFunction(f);
             });
         }
 
         function selectFunction(funcObj) {
             currentFunc = funcObj;
-
-            // Update function bar active state
             document.querySelectorAll('.func-btn').forEach(el => {
                 el.classList.remove('active');
                 if (el.innerText === funcObj.name) el.classList.add('active');
@@ -460,7 +647,6 @@
 
             document.getElementById('currentFuncTitle').innerText = `${funcObj.name} (${funcObj.func})`;
 
-            // Generate forms
             const formInputs = document.getElementById('formInputs');
             formInputs.innerHTML = '';
 
@@ -516,10 +702,15 @@
         async function executeRequest() {
             if (!currentFunc) return;
 
+            if (!accessToken) {
+                log('请先登录！', 'error');
+                showLoginModal();
+                return;
+            }
+
             const args = getArgs();
             if (!args) return;
 
-            const token = document.getElementById('apiToken').value;
             const url = `${API_BASE}/${currentModule}`;
             const payload = {
                 function: currentFunc.func,
@@ -535,7 +726,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
+                        'Authorization': `Bearer ${accessToken}`
                     },
                     body: JSON.stringify(payload)
                 });
@@ -549,6 +740,10 @@
                     log(`Success (${duration}ms): ${JSON.stringify(data, null, 2)}`, 'success');
                 } else {
                     log(`Error ${response.status} (${duration}ms): ${JSON.stringify(data, null, 2)}`, 'error');
+                    if (response.status === 401) {
+                        log('Token 已过期，请重新登录', 'error');
+                        logout();
+                    }
                 }
             } catch (e) {
                 log(`Exception: ${e.message}`, 'error');
@@ -566,7 +761,7 @@
             entry.innerHTML = `
             <div>
                 <span class="log-time">[${time}]</span>
-                <span class="log-method">${currentModule.toUpperCase()}.${currentFunc ? currentFunc.func : 'Unknown'}</span>
+                <span class="log-method">${currentModule.toUpperCase()}.${currentFunc ? currentFunc.func : 'System'}</span>
                 <span class="${statusClass}">${type.toUpperCase()}</span>
             </div>
             <code class="log-data">${message}</code>
@@ -582,10 +777,14 @@
 
         function copyCurl() {
             if (!currentFunc) return;
+            if (!accessToken) {
+                alert('请先登录');
+                return;
+            }
+
             const args = getArgs();
             if (!args) return;
 
-            const token = document.getElementById('apiToken').value;
             const url = `${window.location.origin}${API_BASE}/${currentModule}`;
             const payload = {
                 function: currentFunc.func,
@@ -594,16 +793,13 @@
 
             const curl = `curl -X POST "${url}" \\
   -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer ${token}" \\
+  -H "Authorization: Bearer ${accessToken}" \\
   -d '${JSON.stringify(payload)}'`;
 
             navigator.clipboard.writeText(curl).then(() => {
                 log('cURL command copied to clipboard', 'info');
             });
         }
-
-        // Start
-        init();
     </script>
 
 </body>

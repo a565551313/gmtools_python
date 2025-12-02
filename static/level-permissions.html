@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#6366f1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>GMTools 权限配置</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {"50":"#eef2ff","100":"#e0e7ff","200":"#c7d2fe","300":"#a5b4fc","400":"#818cf8","500":"#6366f1","600":"#4f46e5","700":"#4338ca","800":"#3730a3","900":"#312e81"}
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        * { font-family: 'Inter', system-ui, sans-serif; }
+        [x-cloak] { display: none !important; }
+        
+        .gradient-bg { background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%); }
+        
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* 动画 */
+        .fade-in { animation: fadeIn 0.3s ease; }
+        .slide-up { animation: slideUp 0.3s ease; }
+        
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* 自定义复选框 */
+        .custom-checkbox {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 22px;
+            height: 22px;
+            border: 2px solid #d1d5db;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+            flex-shrink: 0;
+        }
+        
+        .custom-checkbox:checked {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            border-color: transparent;
+        }
+        
+        .custom-checkbox:checked::after {
+            content: '';
+            position: absolute;
+            left: 6px;
+            top: 2px;
+            width: 6px;
+            height: 12px;
+            border: solid white;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+        }
+        
+        .custom-checkbox:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+        
+        /* 安全区域 */
+        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        .safe-top { padding-top: env(safe-area-inset-top); }
+    </style>
+</head>
+
+<body class="bg-gray-50 min-h-screen" x-data="app()" x-init="init()">
+
+    <!-- Toast 通知 -->
+    <div class="fixed top-4 right-4 z-[100] space-y-2 max-w-sm w-full px-4" x-cloak>
+        <template x-for="toast in toasts" :key="toast.id">
+            <div x-show="toast.show"
+                 x-transition:enter="transition ease-out duration-300"
+                 x-transition:enter-start="opacity-0 translate-x-8"
+                 x-transition:enter-end="opacity-100 translate-x-0"
+                 x-transition:leave="transition ease-in duration-200"
+                 x-transition:leave-start="opacity-100"
+                 x-transition:leave-end="opacity-0"
+                 :class="{
+                     'bg-emerald-500': toast.type === 'success',
+                     'bg-red-500': toast.type === 'error',
+                     'bg-blue-500': toast.type === 'info'
+                 }"
+                 class="flex items-center gap-3 px-4 py-3 rounded-2xl shadow-lg text-white">
+                <i :data-lucide="toast.type === 'success' ? 'check-circle-2' : toast.type === 'error' ? 'x-circle' : 'info'" class="w-5 h-5 flex-shrink-0"></i>
+                <span x-text="toast.message" class="flex-1 text-sm font-medium"></span>
+                <button @click="removeToast(toast.id)" class="p-1 hover:bg-white/20 rounded-full">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </template>
+    </div>
+
+    <!-- 加载遮罩 -->
+    <div x-show="loading" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">
+        <div class="flex flex-col items-center gap-4">
+            <div class="w-12 h-12 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin"></div>
+            <span class="text-gray-500 font-medium">加载中...</span>
+        </div>
+    </div>
+
+    <!-- 主容器 -->
+    <div class="min-h-screen flex flex-col">
+        
+        <!-- 头部导航 -->
+        <header class="gradient-bg text-white sticky top-0 z-40 safe-top">
+            <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex items-center justify-between h-16">
+                    <div class="flex items-center gap-3">
+                        <a href="/user-management" 
+                           class="p-2 hover:bg-white/10 rounded-xl transition">
+                            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+                        </a>
+                        <div>
+                            <h1 class="font-bold text-lg">权限配置</h1>
+                            <p class="text-xs text-white/70 hidden sm:block">Level-Based 权限管理</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button @click="resetForm()"
+                                class="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl transition text-sm font-medium">
+                            <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                            <span class="hidden sm:inline">重置</span>
+                        </button>
+                        <button @click="savePermissions()"
+                                class="flex items-center gap-2 px-4 py-2 bg-white text-primary-600 hover:bg-white/90 rounded-xl transition text-sm font-bold shadow-lg">
+                            <i data-lucide="save" class="w-4 h-4"></i>
+                            <span>保存</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- 主内容区 -->
+        <main class="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">
+            
+            <!-- 等级选择器 -->
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6 mb-6 slide-up">
+                <div class="flex flex-col sm:flex-row sm:items-center gap-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 bg-gradient-to-br from-primary-400 to-purple-500 rounded-xl flex items-center justify-center text-white">
+                            <i data-lucide="shield" class="w-6 h-6"></i>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-gray-900">选择等级</label>
+                            <p class="text-xs text-gray-500">配置此等级的权限</p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex-1 sm:max-w-xs">
+                        <div class="relative">
+                            <select x-model="selectedLevel" 
+                                    @change="loadLevelPermissions()"
+                                    class="w-full py-3 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-primary-500 focus:bg-white transition outline-none appearance-none font-medium text-gray-900">
+                                <template x-for="level in 10" :key="level">
+                                    <option :value="level" x-text="'Level ' + level"></option>
+                                </template>
+                            </select>
+                            <div class="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
+                                <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400"></i>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="hidden sm:block flex-1">
+                        <div class="flex items-center gap-2 px-4 py-3 bg-blue-50 rounded-xl">
+                            <i data-lucide="info" class="w-5 h-5 text-blue-500 flex-shrink-0"></i>
+                            <p class="text-sm text-blue-700">修改此等级的权限配置，所有属于此等级的用户将自动继承。</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 移动端提示 -->
+                <div class="sm:hidden mt-4">
+                    <div class="flex items-start gap-2 px-4 py-3 bg-blue-50 rounded-xl">
+                        <i data-lucide="info" class="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5"></i>
+                        <p class="text-sm text-blue-700">修改此等级的权限配置，所有属于此等级的用户将自动继承。</p>
+                    </div>
+                </div>
+                
+                <!-- 快捷操作 -->
+                <div class="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-100">
+                    <button @click="selectAll()"
+                            class="flex items-center gap-2 px-4 py-2 bg-primary-50 hover:bg-primary-100 text-primary-600 rounded-xl text-sm font-medium transition">
+                        <i data-lucide="check-square" class="w-4 h-4"></i>
+                        全部选中
+                    </button>
+                    <button @click="deselectAll()"
+                            class="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl text-sm font-medium transition">
+                        <i data-lucide="square" class="w-4 h-4"></i>
+                        全部取消
+                    </button>
+                    <div class="flex-1"></div>
+                    <div class="flex items-center gap-2 text-sm text-gray-500">
+                        <span>已选择</span>
+                        <span class="px-2 py-1 bg-primary-100 text-primary-600 rounded-lg font-bold" x-text="selectedCount"></span>
+                        <span>项权限</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 权限分类网格 -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                <template x-for="(category, categoryKey) in allPermissions" :key="categoryKey">
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden fade-in">
+                        <!-- 分类头部 -->
+                        <div class="px-5 py-4 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-100">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-3">
+                                    <div :class="getCategoryColor(categoryKey)"
+                                         class="w-10 h-10 rounded-xl flex items-center justify-center">
+                                        <i :data-lucide="getCategoryIcon(categoryKey)" class="w-5 h-5"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-bold text-gray-900" x-text="getCategoryName(categoryKey)"></h3>
+                                        <p class="text-xs text-gray-500" x-text="category.length + ' 项权限'"></p>
+                                    </div>
+                                </div>
+                                <button @click="toggleCategory(categoryKey)"
+                                        class="text-xs font-medium px-3 py-1.5 rounded-lg transition"
+                                        :class="isCategoryAllSelected(categoryKey) 
+                                            ? 'bg-primary-100 text-primary-600 hover:bg-primary-200' 
+                                            : 'bg-gray-200 text-gray-600 hover:bg-gray-300'">
+                                    <span x-text="isCategoryAllSelected(categoryKey) ? '取消全选' : '全选'"></span>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- 权限列表 -->
+                        <div class="p-4 space-y-3 max-h-80 overflow-y-auto">
+                            <template x-for="perm in category" :key="perm.code">
+                                <label class="flex items-start gap-3 p-3 rounded-xl hover:bg-gray-50 cursor-pointer transition group">
+                                    <input type="checkbox" 
+                                           :value="perm.code"
+                                           :checked="selectedPermissions.includes(perm.code)"
+                                           @change="togglePermission(perm.code)"
+                                           class="custom-checkbox mt-0.5">
+                                    <div class="flex-1 min-w-0">
+                                        <div class="font-medium text-gray-900 text-sm group-hover:text-primary-600 transition" x-text="perm.name"></div>
+                                        <div class="text-xs text-gray-500 mt-0.5 line-clamp-2" x-text="perm.description || '暂无描述'"></div>
+                                    </div>
+                                </label>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <!-- 空状态 -->
+            <div x-show="Object.keys(allPermissions).length === 0 && !loading" 
+                 class="text-center py-20">
+                <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i data-lucide="shield-off" class="w-10 h-10 text-gray-400"></i>
+                </div>
+                <h3 class="text-lg font-medium text-gray-900 mb-2">暂无权限配置</h3>
+                <p class="text-gray-500">请检查后端权限定义是否正确</p>
+            </div>
+
+        </main>
+
+        <!-- 移动端底部操作栏 -->
+        <div class="sm:hidden sticky bottom-0 bg-white border-t border-gray-100 p-4 safe-bottom">
+            <div class="flex gap-3">
+                <button @click="resetForm()"
+                        class="flex-1 flex items-center justify-center gap-2 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition">
+                    <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
+                    重置
+                </button>
+                <button @click="savePermissions()"
+                        class="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-primary-500 to-purple-600 text-white font-bold rounded-xl shadow-lg shadow-primary-500/30 transition">
+                    <i data-lucide="save" class="w-5 h-5"></i>
+                    保存配置
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        function app() {
+            return {
+                // 状态
+                loading: false,
+                selectedLevel: 1,
+                allPermissions: {},
+                selectedPermissions: [],
+                originalPermissions: [],
+                
+                // Toast
+                toasts: [],
+                toastId: 0,
+
+                // 分类配置
+                categoryConfig: {
+                    account: { name: '账号管理', icon: 'user-cog', color: 'bg-blue-100 text-blue-600' },
+                    pet: { name: '宠物管理', icon: 'heart', color: 'bg-pink-100 text-pink-600' },
+                    equipment: { name: '装备管理', icon: 'sword', color: 'bg-orange-100 text-orange-600' },
+                    gift: { name: '礼物道具', icon: 'gift', color: 'bg-green-100 text-green-600' },
+                    character: { name: '角色管理', icon: 'user', color: 'bg-purple-100 text-purple-600' },
+                    game: { name: '游戏管理', icon: 'gamepad-2', color: 'bg-indigo-100 text-indigo-600' },
+                    recharge: { name: '充值管理', icon: 'coins', color: 'bg-yellow-100 text-yellow-600' }
+                },
+
+                // 计算属性
+                get selectedCount() {
+                    return this.selectedPermissions.length;
+                },
+
+                // 初始化
+                async init() {
+                    this.checkAuth();
+                    await this.loadAllPermissions();
+                    await this.loadLevelPermissions();
+                    this.$nextTick(() => lucide.createIcons());
+                },
+
+                // 检查认证
+                checkAuth() {
+                    const token = localStorage.getItem('access_token');
+                    if (!token) {
+                        window.location.href = '/user-management';
+                    }
+                },
+
+                // 获取请求头
+                getHeaders() {
+                    const token = localStorage.getItem('access_token');
+                    return {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    };
+                },
+
+                // 加载所有权限定义
+                async loadAllPermissions() {
+                    this.loading = true;
+                    try {
+                        const res = await fetch('/api/permissions', {
+                            headers: this.getHeaders()
+                        });
+                        if (!res.ok) throw new Error('加载权限失败');
+                        const data = await res.json();
+                        this.allPermissions = data.permissions;
+                        this.$nextTick(() => lucide.createIcons());
+                    } catch (err) {
+                        this.showToast(err.message, 'error');
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                // 加载指定等级的权限
+                async loadLevelPermissions() {
+                    this.loading = true;
+                    try {
+                        const res = await fetch(`/api/levels/${this.selectedLevel}/permissions`, {
+                            headers: this.getHeaders()
+                        });
+                        if (!res.ok) throw new Error('加载等级权限失败');
+                        const data = await res.json();
+                        
+                        const codes = data.permission_codes || [];
+                        this.selectedPermissions = [];
+                        
+                        // 处理通配符
+                        if (codes.includes('*')) {
+                            // 全部权限
+                            for (const [category, perms] of Object.entries(this.allPermissions)) {
+                                perms.forEach(p => {
+                                    if (!this.selectedPermissions.includes(p.code)) {
+                                        this.selectedPermissions.push(p.code);
+                                    }
+                                });
+                            }
+                        } else {
+                            codes.forEach(code => {
+                                if (code.endsWith('.*')) {
+                                    // 分类通配符
+                                    const prefix = code.split('.')[0];
+                                    const categoryPerms = this.allPermissions[prefix] || [];
+                                    categoryPerms.forEach(p => {
+                                        if (!this.selectedPermissions.includes(p.code)) {
+                                            this.selectedPermissions.push(p.code);
+                                        }
+                                    });
+                                } else {
+                                    if (!this.selectedPermissions.includes(code)) {
+                                        this.selectedPermissions.push(code);
+                                    }
+                                }
+                            });
+                        }
+                        
+                        this.originalPermissions = [...this.selectedPermissions];
+                    } catch (err) {
+                        this.showToast(err.message, 'error');
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                // 保存权限
+                async savePermissions() {
+                    this.loading = true;
+                    try {
+                        const res = await fetch(`/api/levels/${this.selectedLevel}/permissions`, {
+                            method: 'PUT',
+                            headers: this.getHeaders(),
+                            body: JSON.stringify({ permission_codes: this.selectedPermissions })
+                        });
+
+                        if (!res.ok) {
+                            const errData = await res.json();
+                            throw new Error(errData.detail || '保存失败');
+                        }
+
+                        this.originalPermissions = [...this.selectedPermissions];
+                        this.showToast(`Level ${this.selectedLevel} 权限保存成功`, 'success');
+                    } catch (err) {
+                        this.showToast(err.message, 'error');
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                // 切换权限
+                togglePermission(code) {
+                    const index = this.selectedPermissions.indexOf(code);
+                    if (index > -1) {
+                        this.selectedPermissions.splice(index, 1);
+                    } else {
+                        this.selectedPermissions.push(code);
+                    }
+                },
+
+                // 切换分类全选
+                toggleCategory(categoryKey) {
+                    const categoryPerms = this.allPermissions[categoryKey] || [];
+                    const allSelected = this.isCategoryAllSelected(categoryKey);
+                    
+                    if (allSelected) {
+                        // 取消全选
+                        categoryPerms.forEach(p => {
+                            const index = this.selectedPermissions.indexOf(p.code);
+                            if (index > -1) {
+                                this.selectedPermissions.splice(index, 1);
+                            }
+                        });
+                    } else {
+                        // 全选
+                        categoryPerms.forEach(p => {
+                            if (!this.selectedPermissions.includes(p.code)) {
+                                this.selectedPermissions.push(p.code);
+                            }
+                        });
+                    }
+                },
+
+                // 检查分类是否全选
+                isCategoryAllSelected(categoryKey) {
+                    const categoryPerms = this.allPermissions[categoryKey] || [];
+                    if (categoryPerms.length === 0) return false;
+                    return categoryPerms.every(p => this.selectedPermissions.includes(p.code));
+                },
+
+                // 全部选中
+                selectAll() {
+                    this.selectedPermissions = [];
+                    for (const [category, perms] of Object.entries(this.allPermissions)) {
+                        perms.forEach(p => {
+                            this.selectedPermissions.push(p.code);
+                        });
+                    }
+                },
+
+                // 全部取消
+                deselectAll() {
+                    this.selectedPermissions = [];
+                },
+
+                // 重置表单
+                resetForm() {
+                    this.selectedPermissions = [...this.originalPermissions];
+                    this.showToast('已重置为原始配置', 'info');
+                },
+
+                // 获取分类名称
+                getCategoryName(key) {
+                    return this.categoryConfig[key]?.name || key;
+                },
+
+                // 获取分类图标
+                getCategoryIcon(key) {
+                    return this.categoryConfig[key]?.icon || 'folder';
+                },
+
+                // 获取分类颜色
+                getCategoryColor(key) {
+                    return this.categoryConfig[key]?.color || 'bg-gray-100 text-gray-600';
+                },
+
+                // Toast 通知
+                showToast(message, type = 'info') {
+                    const id = ++this.toastId;
+                    this.toasts.push({ id, message, type, show: true });
+                    this.$nextTick(() => lucide.createIcons());
+                    setTimeout(() => this.removeToast(id), 4000);
+                },
+
+                removeToast(id) {
+                    const toast = this.toasts.find(t => t.id === id);
+                    if (toast) toast.show = false;
+                    setTimeout(() => {
+                        this.toasts = this.toasts.filter(t => t.id !== id);
+                    }, 200);
+                }
+            }
+        }
+    </script>
+</body>
+</html>
