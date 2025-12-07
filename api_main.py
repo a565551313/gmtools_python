@@ -169,16 +169,20 @@ async def lifespan(app: FastAPI):
         logger.info("使用共享的 GameClient 实例")
         client = shared_client
         # 注册分发器到共享客户端
-        # 注意：这里我们需要一种方式不覆盖原有的 on_receive
-        # 我们假设调用者已经处理好了多播，或者我们在这里做一个简单的链式调用
-        original_on_receive = client.on_receive
-        
-        def multicast_on_receive(data):
-            if original_on_receive:
-                original_on_receive(data)
-            dispatcher.dispatch(data)
+        # 使用标记避免重复注册 multicast_on_receive，防止回调链堆叠
+        if not getattr(client, '_dispatcher_registered', False):
+            original_on_receive = client.on_receive
             
-        client.on_receive = multicast_on_receive
+            def multicast_on_receive(data):
+                if original_on_receive:
+                    original_on_receive(data)
+                dispatcher.dispatch(data)
+                
+            client.on_receive = multicast_on_receive
+            client._dispatcher_registered = True
+            logger.info("已注册响应分发器到共享客户端")
+        else:
+            logger.info("分发器已注册，跳过重复注册")
     else:
         client = GMToolsClient()
         if client.connect(SERVER_HOST, SERVER_PORT):
@@ -192,6 +196,7 @@ async def lifespan(app: FastAPI):
     pet_service = PetService(client, dispatcher)
     equipment_service = EquipmentService(client, dispatcher)
     gift_service = GiftService(client, dispatcher)
+    activity_manager.set_gift_service(gift_service)
     character_service = CharacterService(client, dispatcher)
     game_service = GameService(client, dispatcher)
     
@@ -264,6 +269,10 @@ app.add_middleware(
 # 注册用户管理路由
 from routes.user_routes import router as user_router
 app.include_router(user_router)
+
+# 注册活动管理路由
+from routes.activity_routes import activity_router, activity_manager
+app.include_router(activity_router)
 
 @app.middleware("http")
 
@@ -353,6 +362,10 @@ async def handle_service_request(service, request: ModuleRequest):
 # 注册权限管理路由
 from routes.permission_routes import router as permission_router
 app.include_router(permission_router)
+
+# 注册活动管理路由
+from routes.activity_routes import activity_router
+app.include_router(activity_router)
 
 # 导入权限检查
 from auth.permission_checker import require_permission, has_permission
