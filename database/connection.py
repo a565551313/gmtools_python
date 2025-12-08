@@ -139,6 +139,22 @@ class DatabaseConnection:
                 )
             """)
             
+            # 创建消息表
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS messages (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    sender_id INTEGER,
+                    sender_name VARCHAR(50) NOT NULL,
+                    recipient_id INTEGER NOT NULL,
+                    title VARCHAR(100) NOT NULL,
+                    content TEXT NOT NULL,
+                    is_read BOOLEAN DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE SET NULL,
+                    FOREIGN KEY (recipient_id) REFERENCES users(id) ON DELETE CASCADE
+                )
+            """)
+            
             # 创建索引
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_users_username 

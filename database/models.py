@@ -316,3 +316,195 @@ class AuditLog:
         except Exception as e:
             logger.error(f"清空审计日志失败: {e}")
             return 0
+
+
+class Message:
+    """消息模型"""
+    
+    def __init__(
+        self,
+        id: Optional[int] = None,
+        sender_id: Optional[int] = None,
+        sender_name: str = "",
+        recipient_id: int = 0,
+        title: str = "",
+        content: str = "",
+        is_read: bool = False,
+        created_at: Optional[datetime] = None
+    ):
+        self.id = id
+        self.sender_id = sender_id
+        self.sender_name = sender_name
+        self.recipient_id = recipient_id
+        self.title = title
+        self.content = content
+        self.is_read = is_read
+        self.created_at = created_at
+    
+    @staticmethod
+    def from_row(row) -> 'Message':
+        """从数据库行创建消息对象"""
+        if row is None:
+            return None
+        return Message(
+            id=row['id'],
+            sender_id=row['sender_id'],
+            sender_name=row['sender_name'],
+            recipient_id=row['recipient_id'],
+            title=row['title'],
+            content=row['content'],
+            is_read=bool(row['is_read']),
+            created_at=row['created_at']
+        )
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典"""
+        return {
+            'id': self.id,
+            'sender_id': self.sender_id,
+            'sender_name': self.sender_name,
+            'recipient_id': self.recipient_id,
+            'title': self.title,
+            'content': self.content,
+            'is_read': self.is_read,
+            'created_at': str(self.created_at) if self.created_at else None
+        }
+    
+    @staticmethod
+    def create(sender_id: Optional[int], sender_name: str, recipient_id: int,
+               title: str, content: str) -> Optional['Message']:
+        """创建新消息"""
+        try:
+            with db.get_cursor() as cursor:
+                cursor.execute("""
+                    INSERT INTO messages (sender_id, sender_name, recipient_id, title, content)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (sender_id, sender_name, recipient_id, title, content))
+                
+                message_id = cursor.lastrowid
+                logger.info(f"创建消息成功: ID {message_id}")
+                
+                # 直接创建Message对象返回，避免重新查询数据库
+                return Message(
+                    id=message_id,
+                    sender_id=sender_id,
+                    sender_name=sender_name,
+                    recipient_id=recipient_id,
+                    title=title,
+                    content=content,
+                    is_read=False,
+                    created_at=datetime.now()
+                )
+        except Exception as e:
+            logger.error(f"创建消息失败: {e}")
+            return None
+    
+    @staticmethod
+    def get_by_id(message_id: int) -> Optional['Message']:
+        """通过 ID 获取消息"""
+        try:
+            with db.get_cursor() as cursor:
+                cursor.execute("SELECT * FROM messages WHERE id = ?", (message_id,))
+                row = cursor.fetchone()
+                return Message.from_row(row)
+        except Exception as e:
+            logger.error(f"获取消息失败 (ID: {message_id}): {e}")
+            return None
+    
+    @staticmethod
+    def get_by_recipient(recipient_id: int, limit: int = 50, offset: int = 0) -> List['Message']:
+        """获取收件人的消息"""
+        try:
+            with db.get_cursor() as cursor:
+                cursor.execute("""
+                    SELECT * FROM messages 
+                    WHERE recipient_id = ? 
+                    ORDER BY created_at DESC 
+                    LIMIT ? OFFSET ?
+                """, (recipient_id, limit, offset))
+                
+                rows = cursor.fetchall()
+                return [Message.from_row(row) for row in rows]
+        except Exception as e:
+            logger.error(f"获取收件人消息失败: {e}")
+            return []
+    
+    @staticmethod
+    def get_by_sender(sender_id: int, limit: int = 50, offset: int = 0) -> List['Message']:
+        """获取发件人的消息"""
+        try:
+            with db.get_cursor() as cursor:
+                cursor.execute("""
+                    SELECT * FROM messages 
+                    WHERE sender_id = ? 
+                    ORDER BY created_at DESC 
+                    LIMIT ? OFFSET ?
+                """, (sender_id, limit, offset))
+                
+                rows = cursor.fetchall()
+                return [Message.from_row(row) for row in rows]
+        except Exception as e:
+            logger.error(f"获取发件人消息失败: {e}")
+            return []
+    
+    @staticmethod
+    def update_read_status(message_id: int, is_read: bool) -> bool:
+        """更新消息阅读状态"""
+        try:
+            with db.get_cursor() as cursor:
+                cursor.execute("""
+                    UPDATE messages 
+                    SET is_read = ? 
+                    WHERE id = ?
+                """, (is_read, message_id))
+                
+                return True
+        except Exception as e:
+            logger.error(f"更新消息状态失败: {e}")
+            return False
+    
+    @staticmethod
+    def delete_by_id(message_id: int) -> bool:
+        """删除消息"""
+        try:
+            with db.get_cursor() as cursor:
+                cursor.execute("DELETE FROM messages WHERE id = ?", (message_id,))
+                
+                logger.info(f"删除消息成功: ID {message_id}")
+                return True
+        except Exception as e:
+            logger.error(f"删除消息失败: {e}")
+            return False
+    
+    @staticmethod
+    def delete_by_ids(message_ids: List[int]) -> int:
+        """删除指定ID的消息"""
+        try:
+            with db.get_cursor() as cursor:
+                placeholders = ','.join('?' * len(message_ids))
+                cursor.execute(
+                    f"DELETE FROM messages WHERE id IN ({placeholders})",
+                    message_ids
+                )
+                deleted_count = cursor.rowcount
+                logger.info(f"删除了 {deleted_count} 条消息")
+                return deleted_count
+        except Exception as e:
+            logger.error(f"批量删除消息失败: {e}")
+            return 0
+    
+    @staticmethod
+    def count_unread(recipient_id: int) -> int:
+        """统计未读消息数量"""
+        try:
+            with db.get_cursor() as cursor:
+                cursor.execute("""
+                    SELECT COUNT(*) as count 
+                    FROM messages 
+                    WHERE recipient_id = ? AND is_read = 0
+                """, (recipient_id,))
+                row = cursor.fetchone()
+                return row['count'] if row else 0
+        except Exception as e:
+            logger.error(f"统计未读消息失败: {e}")
+            return 0

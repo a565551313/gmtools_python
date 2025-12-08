@@ -227,8 +227,8 @@ async function giveItem() {
       args: {
         player_id: playerId.value,
         item_name: itemForm.name,
-        count: itemForm.amount || '1',
-        params: itemForm.params
+        count: parseInt(itemForm.amount || '1'),
+        item_category: itemForm.params || "default"
       }
     })
     logToConsole('POST', '/api/gift', 200, res)
@@ -246,13 +246,16 @@ async function giveGem() {
   if (!gemForm.minLevel) return ElMessage.error('请输入最低等级')
 
   try {
+    const minLevel = parseInt(gemForm.minLevel)
+    const maxLevel = gemForm.maxLevel ? parseInt(gemForm.maxLevel) : minLevel
+    
     const res = await request.post('/api/gift', {
       function: 'give_gem',
       args: {
         player_id: playerId.value,
         gem_name: gemForm.type,
-        min_level: gemForm.minLevel,
-        max_level: gemForm.maxLevel
+        min_level: minLevel,
+        max_level: maxLevel
       }
     })
     logToConsole('POST', '/api/gift', 200, res)

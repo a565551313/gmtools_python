@@ -77,6 +77,14 @@
             <el-button @click="exportUsers" plain class="hidden-xs">
               <el-icon><Download /></el-icon> 导出
             </el-button>
+            <el-button 
+              type="info" 
+              plain 
+              :disabled="selectedUsers.length === 0"
+              @click="openSendMessageModal(selectedUsers)"
+            >
+              <el-icon><Message /></el-icon> 群发消息 ({{ selectedUsers.length }})
+            </el-button>
             <el-button type="primary" @click="openAddUserModal">
               <el-icon><Plus /></el-icon> 添加用户
             </el-button>
@@ -149,6 +157,11 @@
                       <el-icon><EditPen /></el-icon>
                     </el-button>
                   </el-tooltip>
+                  <el-tooltip content="发送消息" placement="top">
+                    <el-button link type="info" @click="openSendMessageModal([row])">
+                      <el-icon><Message /></el-icon>
+                    </el-button>
+                  </el-tooltip>
                   <el-tooltip content="重置密码" placement="top">
                     <el-button link type="warning" @click="resetPassword(row)">
                       <el-icon><Key /></el-icon>
@@ -219,6 +232,9 @@
               <div class="card-footer">
                 <el-button size="small" @click="openEditModal(user)">
                   <el-icon><EditPen /></el-icon> 编辑
+                </el-button>
+                <el-button size="small" type="info" plain @click="openSendMessageModal([user])">
+                  <el-icon><Message /></el-icon> 发消息
                 </el-button>
                 <el-button size="small" type="warning" plain @click="resetPassword(user)">
                   <el-icon><Key /></el-icon> 重置密码
@@ -349,6 +365,71 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- 发送消息弹窗 -->
+    <el-dialog
+      v-model="messageModalVisible"
+      title="发送消息"
+      width="90%"
+      style="max-width: 500px;"
+      custom-class="message-dialog"
+      :close-on-click-modal="false"
+      append-to-body
+    >
+      <el-form :model="messageForm" :rules="messageRules" ref="messageFormRef" label-width="80px">
+        <!-- 收件人 -->
+        <el-form-item label="收件人" prop="recipients">
+          <div class="recipients-tags">
+            <el-tag 
+              v-for="recipient in messageForm.recipients" 
+              :key="recipient.id" 
+              type="info" 
+              effect="light"
+              closable
+              @close="removeRecipient(recipient.id)"
+            >
+              {{ recipient.username }}
+            </el-tag>
+            <el-tag v-if="messageForm.recipients.length === 0" type="danger" effect="light">
+              请选择收件人
+            </el-tag>
+          </div>
+        </el-form-item>
+
+        <!-- 消息标题 -->
+        <el-form-item label="标题" prop="title">
+          <el-input 
+            v-model="messageForm.title" 
+            placeholder="请输入消息标题"
+          >
+            <template #prefix><el-icon><Document /></el-icon></template>
+          </el-input>
+        </el-form-item>
+
+        <!-- 消息内容 -->
+        <el-form-item label="内容" prop="content">
+          <el-input 
+            v-model="messageForm.content" 
+            type="textarea" 
+            :rows="4" 
+            placeholder="请输入消息内容"
+          ></el-input>
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="messageModalVisible = false">取消</el-button>
+          <el-button 
+            type="primary" 
+            :loading="sendingMessage"
+            @click="sendMessage"
+          >
+            发送消息
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -369,6 +450,7 @@ const currentUser = computed(() => authStore.user)
 const loading = ref(false)
 const logsLoading = ref(false)
 const submitLoading = ref(false)
+const sendingMessage = ref(false)
 const users = ref([])
 const logs = ref([])
 const filteredUsers = ref([])
@@ -377,10 +459,35 @@ const searchKeyword = ref('')
 const activeTab = ref('users')
 const dialogVisible = ref(false)
 const passwordModalVisible = ref(false)
+const messageModalVisible = ref(false)
 const isEdit = ref(false)
 const tempPassword = ref('')
 const selectedLogs = ref([])
 const selectedUsers = ref([])
+const messageFormRef = ref(null)
+
+// 自定义验证：至少选择一个收件人
+const validateRecipients = (rule, value, callback) => {
+  if (!Array.isArray(value) || value.length === 0) {
+    callback(new Error('请选择至少一个收件人'))
+  } else {
+    callback()
+  }
+}
+
+// 消息发送表单
+const messageForm = reactive({
+  recipients: [],
+  title: '',
+  content: ''
+})
+
+// 消息发送表单验证规则
+const messageRules = {
+  recipients: [{ validator: validateRecipients, trigger: ['change', 'submit'] }],
+  title: [{ required: true, message: '请输入消息标题', trigger: ['blur', 'submit'] }],
+  content: [{ required: true, message: '请输入消息内容', trigger: ['blur', 'submit'] }]
+}
 
 // ==================== 计算属性 ====================
 const activeUsers = computed(() => users.value.filter(u => u.is_active).length)
@@ -519,6 +626,69 @@ const copyPassword = () => {
 
 const exportUsers = () => {
   ElMessage.info('导出功能开发中，敬请期待~')
+}
+
+// ==================== 消息发送相关方法 ====================
+// 打开消息发送对话框
+const openSendMessageModal = (selectedUsers) => {
+  // 清空表单
+  messageForm.recipients = [...selectedUsers]
+  messageForm.title = ''
+  messageForm.content = ''
+  messageModalVisible.value = true
+}
+
+// 移除收件人
+const removeRecipient = (userId) => {
+  messageForm.recipients = messageForm.recipients.filter(recipient => recipient.id !== userId)
+}
+
+// 发送消息
+const sendMessage = async () => {
+  try {
+    // 表单验证
+    await messageFormRef.value.validate()
+    
+    // 检查收件人数量
+    if (messageForm.recipients.length === 0) {
+      ElMessage.error('请选择至少一个收件人')
+      return
+    }
+    
+    sendingMessage.value = true
+    
+    // 构造消息发送数据
+    const messageData = {
+      user_ids: messageForm.recipients.map(recipient => recipient.id),
+      title: messageForm.title,
+      content: messageForm.content
+    }
+    
+    // 真实 API 调用
+    const res = await request.post('/api/messages', messageData)
+    
+    // 显示成功消息
+    if (res.status === 'success') {
+      ElMessage.success(res.message || `消息发送成功！已发送给 ${messageForm.recipients.length} 位用户`)
+      messageModalVisible.value = false
+      
+      // 清空表单
+      messageForm.recipients = []
+      messageForm.title = ''
+      messageForm.content = ''
+    } else {
+      ElMessage.error(res.message || '发送消息失败')
+    }
+  } catch (error) {
+    console.error('发送消息失败:', error)
+    if (error.name === 'ValidationError') {
+      // 表单验证失败，不显示额外提示
+    } else {
+      ElMessage.error(error.response?.data?.message || '发送消息失败，请稍后重试')
+    }
+  } finally {
+    sendingMessage.value = false
+  }
 }
 
 // ==================== 辅助函数 ====================
@@ -848,6 +1018,23 @@ onMounted(() => {
   top: 50%;
   transform: translateY(-50%);
   color: #6366f1;
+}
+
+/* 消息发送弹窗 */
+.recipients-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: 120px;
+  overflow-y: auto;
+  padding: 8px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.recipients-tags .el-tag {
+  margin: 0;
 }
 
 /* 响应式媒体查询 */

@@ -47,7 +47,7 @@
           <el-button class="menu-btn" link @click="mobileMenuOpen = true">
             <el-icon :size="24"><Menu /></el-icon>
           </el-button>
-          <h2>{{ modules[currentModule]?.name }}</h2>
+          <h2>{{ isMessagesPage ? '站内消息' : modules[currentModule]?.name }}</h2>
         </div>
         <div class="header-right">
           <!-- User Dropdown -->
@@ -70,8 +70,8 @@
                 <el-dropdown-item command="change-password">
                   <el-icon><Lock /></el-icon>修改密码
                 </el-dropdown-item>
-                <el-dropdown-item command="user-messages" disabled>
-                  <el-icon><ChatDotRound /></el-icon>用户消息
+                <el-dropdown-item command="user-messages">
+                  <el-icon><ChatDotRound /></el-icon>站内消息
                 </el-dropdown-item>
                 <el-dropdown-item command="announcements" disabled>
                   <el-icon><Bell /></el-icon>站内公告
@@ -97,7 +97,7 @@
       <div class="content-wrapper">
         <div class="content-scroll">
           <!-- Global Player ID Input -->
-          <el-card class="player-id-card" shadow="hover">
+          <el-card class="player-id-card" shadow="hover" v-if="!isMessagesPage">
             <div class="player-id-row">
               <div class="input-group">
                 <label>当前操作角色</label>
@@ -120,7 +120,8 @@
 
           <!-- Dynamic Component for Modules -->
           <div class="module-content fade-in">
-             <component :is="modules[currentModule]?.component" v-if="modules[currentModule]?.component" />
+             <MessagesPanel v-if="isMessagesPage" />
+             <component :is="modules[currentModule]?.component" v-else-if="modules[currentModule]?.component" />
              <el-empty v-else description="Module Not Found" />
           </div>
         </div>
@@ -223,6 +224,7 @@ import GiftPanel from './modules/GiftPanel.vue'
 import GamePanel from './modules/GamePanel.vue'
 import ActivationPanel from './modules/ActivationPanel.vue'
 import LogsPanel from './modules/LogsPanel.vue'
+import MessagesPanel from './modules/MessagesPanel.vue'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -230,10 +232,14 @@ const router = useRouter()
 const mobileMenuOpen = ref(false)
 const showConsole = ref(false)
 const currentModule = ref('account')
+const showMessages = ref(false)
 const playerId = ref('')
 const playerIdHistory = ref([])
 const consoleLogs = ref([])
 const consoleRef = ref(null)
+
+// 是否显示消息页面
+const isMessagesPage = computed(() => showMessages.value)
 
 // Dialog visibility states
 const showActivationDialog = ref(false)
@@ -296,7 +302,9 @@ function handleUserCommand(command) {
     showActivationDialog.value = true
   } else if (command === 'change-password') {
     showChangePasswordDialog.value = true
-  } else if (command === 'user-messages' || command === 'announcements' || command === 'work-order') {
+  } else if (command === 'user-messages') {
+    showMessages.value = true
+  } else if (command === 'announcements' || command === 'work-order') {
     ElMessage.info('功能即将上线，敬请期待')
   } else if (command === 'logout') {
     handleLogout()
@@ -305,6 +313,7 @@ function handleUserCommand(command) {
 
 function switchModule(key) {
   currentModule.value = key
+  showMessages.value = false
   mobileMenuOpen.value = false
 }
 
@@ -321,6 +330,12 @@ function addPlayerIdToHistory() {
   }
 }
 
+// Helper function to strip color codes from content
+function stripColorCodes(content) {
+  // Remove common color codes like #Y/, #R/, #H/, etc.
+  return content.replace(/#[A-Z]\//g, '')
+}
+
 function logToConsole(method, url, status, data) {
   consoleLogs.value.push({
     time: new Date().toLocaleTimeString(),
@@ -333,6 +348,28 @@ function logToConsole(method, url, status, data) {
   setTimeout(() => {
     if (consoleRef.value) consoleRef.value.scrollTop = consoleRef.value.scrollHeight
   }, 100)
+  
+  // Show formatted notifications for successful responses with sequence data
+  if (status === 200 && data && data.status === 'success' && Array.isArray(data.data)) {
+    data.data.forEach(item => {
+      if (item.seq_no && item.content) {
+        // Strip color codes from content
+        let message = stripColorCodes(item.content)
+        // Format the message with sequence number
+        message = `(序号:${item.seq_no}) ${message}`
+        // Truncate if longer than 100 characters
+        if (message.length > 100) {
+          message = message.substring(0, 97) + '...'
+        }
+        // Show notification
+        ElMessage({
+          message: message,
+          type: 'success',
+          duration: 5000
+        })
+      }
+    })
+  }
 }
 
 function clearLogs() {

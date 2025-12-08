@@ -274,6 +274,10 @@ app.include_router(user_router)
 from routes.activity_routes import activity_router, activity_manager
 app.include_router(activity_router)
 
+# 注册消息管理路由
+from routes.message_routes import router as message_router
+app.include_router(message_router)
+
 @app.middleware("http")
 
 async def log_requests(request: Request, call_next):

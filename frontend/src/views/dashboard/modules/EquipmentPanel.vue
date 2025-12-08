@@ -129,7 +129,7 @@ const sendEquip = async () => {
   if (!playerId.value) return ElMessage.error('请先输入角色ID')
   if (!equip.level) return ElMessage.error('等级必填')
 
-  const data = { type: equip.type, 等级: equip.level }
+  const data = { 类型: equip.type, 等级: equip.level }
   Object.entries(equip.attr).forEach(([k, v]) => v && (data[k] = Number(v) || v))
   equip.tx1 && (data.特效 = equip.tx1)
   equip.tx2 && (data.特效2 = equip.tx2)
@@ -137,9 +137,13 @@ const sendEquip = async () => {
   equip.zz && (data.制造 = equip.zz)
 
   try {
-    await request.post('/api/equipment', { function: 'send_equipment', args: { char_id: playerId.value, equip_data: data }})
+    const res = await request.post('/api/equipment', { function: 'send_equipment', args: { char_id: playerId.value, equipment_data: data }})
+    log('POST', '/api/equipment', 200, res)
     ElMessage.success('装备已秒发！')
-  } catch { ElMessage.error('发送失败') }
+  } catch (e) {
+    log('POST', '/api/equipment', 0, { error: e.message })
+    ElMessage.error('发送失败')
+  }
 }
 
 // ==================== 灵饰定制 ====================
@@ -173,9 +177,13 @@ const sendLs = async () => {
   ls.e.slice(1,3).forEach((e,i) => e.name && e.val && (data.特效[i+1] = { 特效: e.name, 数值: Number(e.val) }))
 
   try {
-    await request.post('/api/equipment', { function: 'send_ornament', args: { char_id: playerId.value, ornament_data: data }})
+    const res = await request.post('/api/equipment', { function: 'send_ornament', args: { char_id: playerId.value, ornament_data: data }})
+    log('POST', '/api/equipment', 200, res)
     ElMessage.success('灵饰已秒发！')
-  } catch { ElMessage.error('发送失败') }
+  } catch (e) {
+    log('POST', '/api/equipment', 0, { error: e.message })
+    ElMessage.error('发送失败')
+  }
 }
 
 // ==================== 蓝字修改 ====================
@@ -199,9 +207,13 @@ const sendBlue = async () => {
   blue.e.slice(1,4).forEach((e,i) => e.name && e.val && (data.特效[i+1] = { 特效: e.name, 数值: Number(e.val) }))
 
   try {
-    await request.post('/api/equipment', { function: 'send_affix', args: { char_id: playerId.value, affix_data: data }})
+    const res = await request.post('/api/equipment', { function: 'send_affix', args: { char_id: playerId.value, affix_data: data }})
+    log('POST', '/api/equipment', 200, res)
     ElMessage.success('蓝字已强制修改！')
-  } catch { ElMessage.error('修改失败') }
+  } catch (e) {
+    log('POST', '/api/equipment', 0, { error: e.message })
+    ElMessage.error('修改失败')
+  }
 }
 </script>
 
