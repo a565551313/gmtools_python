@@ -211,7 +211,11 @@ class ActivityManager:
         conn.close()
         
         if row:
-            return Activity(**row)
+            # 转换 game_id_required 和 is_active 为布尔值
+            row_dict = dict(row)
+            row_dict['game_id_required'] = bool(row_dict['game_id_required'])
+            row_dict['is_active'] = bool(row_dict['is_active'])
+            return Activity(**row_dict)
         return None
     
     def get_activities(self, limit: int = 100, offset: int = 0) -> List[Activity]:
@@ -226,7 +230,15 @@ class ActivityManager:
         rows = cursor.fetchall()
         conn.close()
         
-        return [Activity(**row) for row in rows]
+        activities = []
+        for row in rows:
+            # 转换 game_id_required 和 is_active 为布尔值
+            row_dict = dict(row)
+            row_dict['game_id_required'] = bool(row_dict['game_id_required'])
+            row_dict['is_active'] = bool(row_dict['is_active'])
+            activities.append(Activity(**row_dict))
+        
+        return activities
     
     def add_reward(self, reward: ActivityReward) -> int:
         """添加奖项"""
@@ -265,120 +277,125 @@ class ActivityManager:
         """参与活动"""
         import random
         
-        activity = self.get_activity(activity_id)
-        if not activity or not activity.is_active:
-            return {"success": False, "message": "活动不存在或未激活"}
-        
-        # 检查时间
-        # 使用本地时区感知的时间
-        now = datetime.now().astimezone()
-        
-        if activity.start_time:
-            try:
-                start_dt = datetime.fromisoformat(activity.start_time)
-                # 如果是 naive 时间，假定为本地时间并添加时区信息
-                if start_dt.tzinfo is None:
-                    start_dt = start_dt.replace(tzinfo=now.tzinfo)
-                
-                if now < start_dt:
-                    return {"success": False, "message": "活动尚未开始"}
-            except ValueError:
-                pass # 忽略无效的时间格式
+        try:
+            activity = self.get_activity(activity_id)
+            if not activity or not activity.is_active:
+                return {"success": False, "message": "活动不存在或未激活"}
+            
+            # 检查时间（简化版，避免时区问题）
+            now = datetime.now()
+            
+            if activity.start_time:
+                try:
+                    # 简化时间比较，只比较字符串
+                    if str(now) < activity.start_time:
+                        return {"success": False, "message": "活动尚未开始"}
+                except Exception as e:
+                    logger.error(f"时间比较失败: {str(e)}")
+                    # 忽略时间比较错误，继续执行
 
-        if activity.end_time:
-            try:
-                end_dt = datetime.fromisoformat(activity.end_time)
-                # 如果是 naive 时间，假定为本地时间并添加时区信息
-                if end_dt.tzinfo is None:
-                    end_dt = end_dt.replace(tzinfo=now.tzinfo)
+            if activity.end_time:
+                try:
+                    # 简化时间比较，只比较字符串
+                    if str(now) > activity.end_time:
+                        return {"success": False, "message": "活动已结束"}
+                except Exception as e:
+                    logger.error(f"时间比较失败: {str(e)}")
+                    # 忽略时间比较错误，继续执行
+            
+            # 检查参与次数限制
+            if activity.max_participations > 0:
+                conn = get_db_connection()
+                cursor = conn.cursor()
                 
-                if now > end_dt:
-                    return {"success": False, "message": "活动已结束"}
-            except ValueError:
-                pass # 忽略无效的时间格式
-        
-        # 检查参与次数限制
-        if activity.max_participations > 0:
+                cursor.execute('''
+                SELECT COUNT(*) as count FROM activity_participations 
+                WHERE activity_id=? AND game_id=?
+                ''', (activity_id, game_id))
+                
+                participated_count = cursor.fetchone()['count']
+                conn.close()
+                
+                if participated_count >= activity.max_participations:
+                    return {"success": False, "message": f"已达到最大参与次数({activity.max_participations})"}
+            
+            # 获取奖项
+            rewards = self.get_rewards(activity_id)
+            # 允许剩余数量为0的奖项，用于"谢谢参与"等特殊奖项
+            available_rewards = [r for r in rewards if r.remaining_quantity > 0 or r.remaining_quantity == -1]
+            
+            # 随机抽奖
+            total_probability = sum(r.probability for r in available_rewards)
+            
+            # 加权随机选择 (基于100%)
+            rand_val = random.uniform(0, 100)
+            cumulative = 0
+            selected_reward = None
+            
+            for reward in available_rewards:
+                cumulative += reward.probability
+                if rand_val <= cumulative:
+                    selected_reward = reward
+                    break
+            
+            # 记录参与
             conn = get_db_connection()
             cursor = conn.cursor()
             
-            cursor.execute('''
-            SELECT COUNT(*) as count FROM activity_participations 
-            WHERE activity_id=? AND game_id=?
-            ''', (activity_id, game_id))
+            # 尝试发放奖励
+            status = 1 # 1: 成功, 2: 失败/待补发
+            if selected_reward:
+                try:
+                    # 只对有剩余数量的奖项发放
+                    if selected_reward.remaining_quantity > 0:
+                        success = self.distribute_reward(game_id, selected_reward)
+                        status = 1 if success else 2
+                    else:
+                        # 对于剩余数量为-1的特殊奖项，直接标记为成功
+                        status = 1
+                except Exception as e:
+                    logger.error(f"自动发奖失败: {str(e)}")
+                    status = 2
             
-            participated_count = cursor.fetchone()['count']
+            participation = ActivityParticipation(
+                activity_id=activity_id,
+                game_id=game_id,
+                reward_id=selected_reward.id if selected_reward else None,
+                reward_name=selected_reward.name if selected_reward else "谢谢参与",
+                status=status,
+                ip_address=ip_address,
+                user_agent=user_agent
+            )
+            
+            cursor.execute('''
+            INSERT INTO activity_participations (activity_id, game_id, reward_id, reward_name, status, ip_address, user_agent)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (participation.activity_id, participation.game_id, participation.reward_id,
+                  participation.reward_name, participation.status, participation.ip_address, participation.user_agent))
+            
+            # 减少剩余数量（只对有剩余数量的奖项）
+            if selected_reward and selected_reward.remaining_quantity > 0:
+                cursor.execute('''
+                UPDATE activity_rewards SET remaining_quantity = remaining_quantity - 1 
+                WHERE id=?
+                ''', (selected_reward.id,))
+            
+            conn.commit()
             conn.close()
             
-            if participated_count >= activity.max_participations:
-                return {"success": False, "message": f"已达到最大参与次数({activity.max_participations})"}
-        
-        # 获取奖项
-        rewards = self.get_rewards(activity_id)
-        available_rewards = [r for r in rewards if r.remaining_quantity > 0]
-        
-        if not available_rewards:
-            return {"success": False, "message": "奖品已发完"}
-        
-        # 随机抽奖
-        total_probability = sum(r.probability for r in available_rewards)
-        
-        # 加权随机选择 (基于100%)
-        rand_val = random.uniform(0, 100)
-        cumulative = 0
-        selected_reward = None
-        
-        for reward in available_rewards:
-            cumulative += reward.probability
-            if rand_val <= cumulative:
-                selected_reward = reward
-                break
-        
-        # 记录参与
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # 尝试发放奖励
-        status = 1 # 1: 成功, 2: 失败/待补发
-        if selected_reward:
-            try:
-                success = self.distribute_reward(game_id, selected_reward)
-                status = 1 if success else 2
-            except Exception as e:
-                logger.error(f"自动发奖失败: {str(e)}")
-                status = 2
-        
-        participation = ActivityParticipation(
-            activity_id=activity_id,
-            game_id=game_id,
-            reward_id=selected_reward.id if selected_reward else None,
-            reward_name=selected_reward.name if selected_reward else "谢谢参与",
-            status=status,
-            ip_address=ip_address,
-            user_agent=user_agent
-        )
-        
-        cursor.execute('''
-        INSERT INTO activity_participations (activity_id, game_id, reward_id, reward_name, status, ip_address, user_agent)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (participation.activity_id, participation.game_id, participation.reward_id,
-              participation.reward_name, participation.status, participation.ip_address, participation.user_agent))
-        
-        # 减少剩余数量
-        if selected_reward:
-            cursor.execute('''
-            UPDATE activity_rewards SET remaining_quantity = remaining_quantity - 1 
-            WHERE id=?
-            ''', (selected_reward.id,))
-        
-        conn.commit()
-        conn.close()
-        
-        return {
-            "success": True,
-            "message": "抽奖成功" if selected_reward else "谢谢参与，下次再来！",
-            "reward": selected_reward.to_dict() if selected_reward else None
-        }
+            return {
+                "success": True,
+                "message": "抽奖成功" if selected_reward else "谢谢参与，下次再来！",
+                "reward": selected_reward.to_dict() if selected_reward else None
+            }
+        except Exception as e:
+            logger.error(f"参与活动失败: {str(e)}")
+            # 返回友好的错误信息，而不是抛出500错误
+            return {
+                "success": False,
+                "message": f"参与失败: {str(e)}",
+                "reward": None
+            }
     
     def get_participations(
         self, 
@@ -654,3 +671,24 @@ class ActivityManager:
             "win_rate": (winning_count / total_participations * 100) if total_participations > 0 else 0,
             "reward_stats": reward_stats
         }
+    
+    def delete_participation(self, participation_id: int) -> bool:
+        """删除单条参与记录"""
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('DELETE FROM activity_participations WHERE id=?', (participation_id,))
+        success = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        return success
+    
+    def clear_participations(self, activity_id: int) -> bool:
+        """清空指定活动的所有参与记录"""
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('DELETE FROM activity_participations WHERE activity_id=?', (activity_id,))
+        conn.commit()
+        conn.close()
+        return True

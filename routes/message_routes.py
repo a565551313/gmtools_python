@@ -83,6 +83,7 @@ async def create_messages(
             
             if message:
                 created_messages.append(message.to_dict())
+                result_message = f"消息已成功发送给用户ID {request.recipient_id}"
         
         # 处理多个收件人（管理员场景）
         elif request.user_ids:
@@ -93,14 +94,15 @@ async def create_messages(
                     detail="只有管理员可以发送消息给多个用户"
                 )
             
+            success_count = 0
+            failed_users = []
+            
             for user_id in request.user_ids:
                 # 检查用户是否存在
                 recipient = User.get_by_id(user_id)
                 if not recipient:
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail=f"用户ID {user_id} 不存在"
-                    )
+                    failed_users.append(user_id)
+                    continue
                 
                 # 创建消息
                 message = Message.create(
@@ -113,10 +115,16 @@ async def create_messages(
                 
                 if message:
                     created_messages.append(message.to_dict())
+                    success_count += 1
+            
+            # 添加成功和失败的统计信息
+            result_message = f"消息已成功发送给 {success_count} 位用户"
+            if failed_users:
+                result_message += f"，{len(failed_users)} 位用户发送失败（用户ID不存在：{', '.join(map(str, failed_users))}）"
         
         return {
             "status": "success",
-            "message": f"消息已发送给 {len(created_messages)} 位用户",
+            "message": result_message,
             "data": created_messages
         }
     except HTTPException:
@@ -151,10 +159,18 @@ async def get_messages(
                 detail="type 参数只能是 'inbox' 或 'sent'"
             )
         
+        # 获取真实的总数
+        if type == "inbox":
+            total = Message.count_by_recipient(current_user.id)
+        elif type == "sent":
+            total = Message.count_by_sender(current_user.id)
+        else:
+            total = 0
+        
         return {
             "status": "success",
             "data": [message.to_dict() for message in messages],
-            "total": len(messages) + offset,
+            "total": total,
             "unread_count": Message.count_unread(current_user.id) if type == "inbox" else 0
         }
     except HTTPException:
@@ -163,6 +179,29 @@ async def get_messages(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取消息失败: {str(e)}"
+        )
+
+
+@router.get("/messages/unread-count")
+async def get_unread_count(
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    获取当前用户的未读消息数量
+    """
+    try:
+        unread_count = Message.count_unread(current_user.id)
+        
+        return {
+            "status": "success",
+            "data": {
+                "unread_count": unread_count
+            }
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"获取未读消息数量失败: {str(e)}"
         )
 
 
@@ -334,27 +373,4 @@ async def delete_messages(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"批量删除消息失败: {str(e)}"
-        )
-
-
-@router.get("/messages/unread-count")
-async def get_unread_count(
-    current_user: User = Depends(get_current_active_user)
-):
-    """
-    获取当前用户的未读消息数量
-    """
-    try:
-        unread_count = Message.count_unread(current_user.id)
-        
-        return {
-            "status": "success",
-            "data": {
-                "unread_count": unread_count
-            }
-        }
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"获取未读消息数量失败: {str(e)}"
         )

@@ -46,6 +46,7 @@
     <!-- 活动列表 -->
     <div class="activity-list">
       <el-table :data="activities" stripe style="width: 100%">
+        <el-table-column prop="id" label="活动ID" width="80" />
         <el-table-column prop="name" label="活动名称" min-width="150" />
         <el-table-column prop="type" label="类型" width="100">
           <template #default="scope">
@@ -56,8 +57,8 @@
         </el-table-column>
         <el-table-column label="状态" width="80">
           <template #default="scope">
-            <el-tag :type="scope.row.is_active ? 'success' : 'info'">
-              {{ scope.row.is_active ? '进行中' : '已暂停' }}
+            <el-tag :type="getActivityStatusType(scope.row)">
+              {{ getActivityStatusText(scope.row) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -230,11 +231,12 @@
         <el-tabs v-model="activeDetailTab">
           <el-tab-pane label="基本信息" name="basic">
             <el-descriptions :column="2" border>
+              <el-descriptions-item label="活动ID">{{ currentActivity.activity.id }}</el-descriptions-item>
               <el-descriptions-item label="活动名称">{{ currentActivity.activity.name }}</el-descriptions-item>
               <el-descriptions-item label="活动类型">{{ getTypeLabel(currentActivity.activity.type) }}</el-descriptions-item>
               <el-descriptions-item label="活动状态">
-                <el-tag :type="currentActivity.activity.is_active ? 'success' : 'info'">
-                  {{ currentActivity.activity.is_active ? '进行中' : '已暂停' }}
+                <el-tag :type="getActivityStatusType(currentActivity.activity)">
+                  {{ getActivityStatusText(currentActivity.activity) }}
                 </el-tag>
               </el-descriptions-item>
               <el-descriptions-item label="参与限制">{{ currentActivity.activity.max_participations || '无限制' }}</el-descriptions-item>
@@ -246,7 +248,11 @@
             <div v-if="currentActivity.activity.config_parsed" class="config-display">
               <h4>活动配置</h4>
               <el-descriptions :column="3" border>
-                <el-descriptions-item v-for="(value, key) in currentActivity.activity.config_parsed" :key="key" :label="key">
+                <el-descriptions-item 
+                  v-for="(value, key) in currentActivity.activity.config_parsed" 
+                  :key="key" 
+                  :label="getConfigLabel(key)"
+                >
                   {{ value }}
                 </el-descriptions-item>
               </el-descriptions>
@@ -272,7 +278,7 @@
                 <el-table-column prop="name" label="奖项名称" />
                 <el-table-column label="类型" width="100">
                   <template #default="scope">
-                    <el-tag>{{ scope.row.type }}</el-tag>
+                    <el-tag>{{ getRewardTypeLabel(scope.row.type) }}</el-tag>
                   </template>
                 </el-table-column>
                 <el-table-column prop="probability" label="中奖率" width="100">
@@ -324,6 +330,18 @@
               <!-- 奖项统计 -->
               <el-divider>奖项发放统计</el-divider>
               <el-table :data="currentActivity.statistics?.reward_stats || []" stripe>
+                <el-table-column label="活动ID" width="100">
+                  <template #default="scope">
+                    {{ currentActivity.activity.id }}
+                  </template>
+                </el-table-column>
+                <el-table-column label="活动类型" width="120">
+                  <template #default="scope">
+                    <el-tag :type="getTypeTagType(currentActivity.activity.type)">
+                      {{ getTypeLabel(currentActivity.activity.type) }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
                 <el-table-column prop="name" label="奖项名称" />
                 <el-table-column prop="total_quantity" label="总数量" width="100" />
                 <el-table-column prop="remaining_quantity" label="剩余数量" width="100" />
@@ -342,32 +360,41 @@
             <div class="records-section">
               <div class="section-header">
                 <h4>中奖记录列表</h4>
-                <el-button size="small" @click="loadParticipations">刷新</el-button>
+                <div style="display: flex; gap: 10px;">
+                  <el-button size="small" type="danger" @click="handleClearRecords">
+                    清空记录
+                  </el-button>
+                  <el-button size="small" @click="resetAndLoadParticipations">刷新</el-button>
+                </div>
               </div>
               
               <!-- 筛选栏 -->
               <div class="filter-bar" style="margin-bottom: 20px;">
                 <el-row :gutter="20">
                   <el-col :span="6">
-                    <el-input v-model="participationFilters.game_id" placeholder="玩家ID" clearable @clear="loadParticipations" />
+                    <el-input v-model="participationFilters.game_id" placeholder="玩家ID" clearable @clear="resetAndLoadParticipations" />
                   </el-col>
                   <el-col :span="6">
-                    <el-input v-model="participationFilters.reward_name" placeholder="奖品名称" clearable @clear="loadParticipations" />
+                    <el-input v-model="participationFilters.reward_name" placeholder="奖品名称" clearable @clear="resetAndLoadParticipations" />
                   </el-col>
                   <el-col :span="4">
-                    <el-select v-model="participationFilters.status" placeholder="状态" clearable @clear="loadParticipations">
+                    <el-select v-model="participationFilters.status" placeholder="状态" clearable @clear="resetAndLoadParticipations">
                       <el-option label="成功" :value="1" />
                       <el-option label="待补发" :value="2" />
                     </el-select>
                   </el-col>
                   <el-col :span="4">
-                    <el-button type="primary" @click="loadParticipations">查询</el-button>
+                    <el-checkbox v-model="filterThanks" @change="resetAndLoadParticipations">过滤谢谢参与</el-checkbox>
+                  </el-col>
+                  <el-col :span="4">
+                    <el-button type="primary" @click="resetAndLoadParticipations">查询</el-button>
                   </el-col>
                 </el-row>
               </div>
               
               <el-table :data="participations" stripe v-loading="loadingParticipations">
                 <el-table-column prop="id" label="ID" width="80" />
+                <el-table-column prop="activity_id" label="活动ID" width="100" />
                 <el-table-column prop="game_id" label="玩家ID" width="150" />
                 <el-table-column label="活动类型" width="120">
                   <template #default="scope">
@@ -389,7 +416,7 @@
                     </el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column label="操作" width="100">
+                <el-table-column label="操作" width="150">
                   <template #default="scope">
                     <el-button 
                       size="small" 
@@ -398,6 +425,13 @@
                       :loading="scope.row.resending"
                     >
                       补发
+                    </el-button>
+                    <el-button 
+                      size="small" 
+                      type="danger" 
+                      @click="handleDeleteRecord(scope.row)"
+                    >
+                      删除
                     </el-button>
                   </template>
                 </el-table-column>
@@ -421,6 +455,9 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="showDetailDialog = false">关闭</el-button>
+          <el-button @click="openActivityUrl(currentActivity.activity.id)">
+            打开活动链接
+          </el-button>
           <el-button type="primary" @click="copyActivityUrl(currentActivity.activity.id)">
             复制活动链接
           </el-button>
@@ -476,6 +513,19 @@
               />
             </el-form-item>
           </el-col>
+          <el-col :span="12">
+            <el-form-item label="剩余数量">
+              <el-input-number 
+                v-model="rewardForm.remaining_quantity" 
+                :min="0" 
+                placeholder="剩余数量"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        
+        <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="显示顺序">
               <el-input-number 
@@ -561,6 +611,7 @@ const rewardForm = reactive({
   type: 'item',
   probability: 0,
   total_quantity: 1,
+  remaining_quantity: 1,
   value_json: '',
   icon: '',
   order_index: 0
@@ -590,6 +641,7 @@ const participationFilters = reactive({
   status: '',
   activity_type: ''
 })
+const filterThanks = ref(false) // 是否过滤"谢谢参与"记录
 const participationPagination = reactive({
   page: 1,
   pageSize: 10,
@@ -602,6 +654,47 @@ watch(activeDetailTab, (newVal) => {
     loadParticipations()
   }
 })
+
+// 活动状态动态计算函数
+function isActivityActive(activity) {
+  if (!activity.is_active) return false;
+  
+  const now = new Date();
+  const startTime = activity.start_time ? new Date(activity.start_time) : null;
+  const endTime = activity.end_time ? new Date(activity.end_time) : null;
+  
+  // 检查是否在时间范围内
+  const isAfterStartTime = !startTime || now >= startTime;
+  const isBeforeEndTime = !endTime || now <= endTime;
+  
+  return isAfterStartTime && isBeforeEndTime;
+}
+
+// 获取活动状态文本
+function getActivityStatusText(activity) {
+  if (!activity.is_active) return '已暂停';
+  
+  const now = new Date();
+  const startTime = activity.start_time ? new Date(activity.start_time) : null;
+  const endTime = activity.end_time ? new Date(activity.end_time) : null;
+  
+  if (startTime && now < startTime) return '未开始';
+  if (endTime && now > endTime) return '已结束';
+  return '进行中';
+}
+
+// 获取活动状态标签类型
+function getActivityStatusType(activity) {
+  if (!activity.is_active) return 'info';
+  
+  const now = new Date();
+  const startTime = activity.start_time ? new Date(activity.start_time) : null;
+  const endTime = activity.end_time ? new Date(activity.end_time) : null;
+  
+  if (startTime && now < startTime) return 'warning';
+  if (endTime && now > endTime) return 'danger';
+  return 'success';
+}
 
 // 加载中奖记录
 async function loadParticipations() {
@@ -626,17 +719,38 @@ async function loadParticipations() {
     
     const result = await request.get(`/api/activity/${currentActivity.value.activity.id}/participations?${queryString}`)
     if (result.status === 'success' || result.success) {
-      participations.value = result.data || []
-      participationPagination.total = result.total || 0
+      let records = result.data || [];
+      
+      // 根据勾选框状态决定是否过滤"谢谢参与"记录
+      if (filterThanks.value) {
+        records = records.filter(record => 
+          record.reward_id !== null && record.reward_name !== '谢谢参与'
+        );
+      }
+      
+      participations.value = records;
+      // 使用API返回的total，确保分页正确
+      participationPagination.total = result.total || participations.value.length;
     } else {
       ElMessage.error(result.message || '加载记录失败')
+      participations.value = []
+      participationPagination.total = 0
     }
   } catch (error) {
     console.error('加载记录失败:', error)
     ElMessage.error('网络请求失败')
+    participations.value = []
+    participationPagination.total = 0
   } finally {
     loadingParticipations.value = false
   }
+}
+
+// 重置分页并刷新记录
+function resetAndLoadParticipations() {
+  // 重置页码到第一页
+  participationPagination.page = 1
+  loadParticipations()
 }
 
 // 补发奖励
@@ -658,6 +772,54 @@ async function handleResend(record) {
     ElMessage.error('网络请求失败')
   } finally {
     record.resending = false
+  }
+}
+
+// 删除单条记录
+async function handleDeleteRecord(record) {
+  try {
+    await ElMessageBox.confirm('确定要删除这条记录吗？此操作不可恢复！', '确认删除', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    
+    const result = await request.delete(`/api/activity/${currentActivity.value.activity.id}/participations/${record.id}`)
+    if (result.status === 'success' || result.success) {
+      ElMessage.success('记录删除成功')
+      loadParticipations() // 刷新记录列表
+    } else {
+      ElMessage.error(result.message || '删除失败')
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除记录失败:', error)
+      ElMessage.error('网络请求失败')
+    }
+  }
+}
+
+// 清空所有记录
+async function handleClearRecords() {
+  try {
+    await ElMessageBox.confirm('确定要清空所有中奖记录吗？此操作不可恢复！', '确认清空', {
+      confirmButtonText: '清空',
+      cancelButtonText: '取消',
+      type: 'danger'
+    })
+    
+    const result = await request.delete(`/api/activity/${currentActivity.value.activity.id}/participations`)
+    if (result.status === 'success' || result.success) {
+      ElMessage.success('记录清空成功')
+      loadParticipations() // 刷新记录列表
+    } else {
+      ElMessage.error(result.message || '清空失败')
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('清空记录失败:', error)
+      ElMessage.error('网络请求失败')
+    }
   }
 }
 
@@ -713,6 +875,28 @@ function getTypeLabel(type) {
     'points': '积分抽奖'
   }
   return typeMap[type] || type
+}
+
+// 获取配置参数中文标签
+function getConfigLabel(key) {
+  const configMap = {
+    'size': '转盘尺寸',
+    'rotate_duration': '旋转时间',
+    'enable_sound': '背景音乐'
+  }
+  return configMap[key] || key
+}
+
+// 获取奖项类型中文标签
+function getRewardTypeLabel(type) {
+  const rewardTypeMap = {
+    'item': '道具',
+    'currency': '货币',
+    'equipment': '装备',
+    'exp': '经验',
+    'special': '特殊奖励'
+  }
+  return rewardTypeMap[type] || type
 }
 
 // 格式化时间
@@ -925,6 +1109,8 @@ function resetRewardForm() {
     icon: '',
     order_index: 0
   })
+  // 关闭对话框
+  showAddRewardDialog.value = false
 }
 
 // 复制活动链接
@@ -937,6 +1123,12 @@ function copyActivityUrl(activityId) {
   })
 }
 
+// 打开活动链接
+function openActivityUrl(activityId) {
+  const url = `${window.location.origin}/activity/${activityId}`
+  window.open(url, '_blank')
+}
+
 // 编辑奖项
 function editReward(reward) {
   Object.assign(rewardForm, {
@@ -946,6 +1138,7 @@ function editReward(reward) {
     type: reward.type,
     probability: reward.probability,
     total_quantity: reward.total_quantity,
+    remaining_quantity: reward.remaining_quantity,
     value_json: JSON.stringify(JSON.parse(reward.value || '{}'), null, 2),
     icon: reward.icon,
     order_index: reward.order_index

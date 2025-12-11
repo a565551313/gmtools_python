@@ -60,7 +60,7 @@ class ParticipateRequest(BaseModel):
 @activity_router.post("/create")
 async def create_activity(
     request: ActivityCreateRequest,
-    current_user: AuthUser = Depends(get_current_active_user)
+    current_user: AuthUser = Depends(get_current_admin_user)
 ):
     """创建活动"""
     try:
@@ -164,7 +164,7 @@ async def get_activity(
 async def update_activity(
     activity_id: int,
     request: ActivityUpdateRequest,
-    current_user: AuthUser = Depends(get_current_active_user)
+    current_user: AuthUser = Depends(get_current_admin_user)
 ):
     """更新活动"""
     try:
@@ -207,7 +207,7 @@ async def update_activity(
 async def add_reward(
     activity_id: int,
     request: RewardCreateRequest,
-    current_user: AuthUser = Depends(get_current_active_user)
+    current_user: AuthUser = Depends(get_current_admin_user)
 ):
     """添加活动奖项"""
     try:
@@ -259,7 +259,7 @@ async def update_reward(
     activity_id: int,
     reward_id: int,
     request: RewardCreateRequest,
-    current_user: AuthUser = Depends(get_current_active_user)
+    current_user: AuthUser = Depends(get_current_admin_user)
 ):
     """更新活动奖项"""
     try:
@@ -324,7 +324,7 @@ async def update_reward(
 async def delete_reward(
     activity_id: int,
     reward_id: int,
-    current_user: AuthUser = Depends(get_current_active_user)
+    current_user: AuthUser = Depends(get_current_admin_user)
 ):
     """删除活动奖项"""
     try:
@@ -444,7 +444,7 @@ async def get_activity_public_info(activity_id: int):
 @activity_router.delete("/{activity_id}")
 async def delete_activity(
     activity_id: int,
-    current_user: AuthUser = Depends(get_current_active_user)
+    current_user: AuthUser = Depends(get_current_admin_user)
 ):
     """删除活动"""
     try:
@@ -504,7 +504,7 @@ async def get_activity_participations(
     reward_name: Optional[str] = None,
     status: Optional[int] = None,
     activity_type: Optional[str] = None,
-    current_user: AuthUser = Depends(get_current_active_user)
+    current_user: AuthUser = Depends(get_current_admin_user)
 ):
     """获取活动参与记录（管理员）"""
     try:
@@ -535,7 +535,7 @@ async def get_activity_participations(
 async def resend_reward(
     activity_id: int,
     record_id: int,
-    current_user: AuthUser = Depends(get_current_active_user)
+    current_user: AuthUser = Depends(get_current_admin_user)
 ):
     """补发奖励"""
     try:
@@ -555,3 +555,58 @@ async def resend_reward(
     except Exception as e:
         logger.error(f"补发奖励失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"补发失败: {str(e)}")
+
+@activity_router.delete("/{activity_id}/participations/{record_id}")
+async def delete_participation(
+    activity_id: int,
+    record_id: int,
+    current_user: AuthUser = Depends(get_current_admin_user)
+):
+    """删除单条中奖记录"""
+    try:
+        # 检查活动是否存在
+        existing_activity = activity_manager.get_activity(activity_id)
+        if not existing_activity:
+            raise HTTPException(status_code=404, detail="活动不存在")
+        
+        # 删除记录
+        success = activity_manager.delete_participation(record_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="记录不存在")
+        
+        return {
+            "success": True,
+            "message": "记录删除成功"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"删除记录失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"删除失败: {str(e)}")
+
+@activity_router.delete("/{activity_id}/participations")
+async def clear_participations(
+    activity_id: int,
+    current_user: AuthUser = Depends(get_current_admin_user)
+):
+    """清空所有中奖记录"""
+    try:
+        # 检查活动是否存在
+        existing_activity = activity_manager.get_activity(activity_id)
+        if not existing_activity:
+            raise HTTPException(status_code=404, detail="活动不存在")
+        
+        # 清空记录
+        activity_manager.clear_participations(activity_id)
+        
+        return {
+            "success": True,
+            "message": "记录清空成功"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"清空记录失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"清空失败: {str(e)}")

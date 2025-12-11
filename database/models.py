@@ -508,3 +508,35 @@ class Message:
         except Exception as e:
             logger.error(f"统计未读消息失败: {e}")
             return 0
+    
+    @staticmethod
+    def count_by_recipient(recipient_id: int) -> int:
+        """统计收件人消息总数"""
+        try:
+            with db.get_cursor() as cursor:
+                cursor.execute("""
+                    SELECT COUNT(*) as count 
+                    FROM messages 
+                    WHERE recipient_id = ?
+                """, (recipient_id,))
+                row = cursor.fetchone()
+                return row['count'] if row else 0
+        except Exception as e:
+            logger.error(f"统计收件人消息总数失败: {e}")
+            return 0
+    
+    @staticmethod
+    def count_by_sender(sender_id: int) -> int:
+        """统计发件人消息总数"""
+        try:
+            with db.get_cursor() as cursor:
+                cursor.execute("""
+                    SELECT COUNT(*) as count 
+                    FROM messages 
+                    WHERE sender_id = ?
+                """, (sender_id,))
+                row = cursor.fetchone()
+                return row['count'] if row else 0
+        except Exception as e:
+            logger.error(f"统计发件人消息总数失败: {e}")
+            return 0

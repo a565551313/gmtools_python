@@ -64,14 +64,14 @@
         <el-empty description="暂无消息" />
       </div>
       <div v-else class="messages-list">
-        <div
-          v-for="message in filteredMessages"
-          :key="message.id"
-          class="message-item"
-          :class="{ 'read': message.is_read, 'unread': !message.is_read }"
-          @click="viewMessage(message)"
-        >
-          <div class="message-checkbox">
+          <div
+            v-for="message in paginatedMessages"
+            :key="message.id"
+            class="message-item"
+            :class="{ 'read': message.is_read, 'unread': !message.is_read }"
+            @click="viewMessage(message)"
+          >
+          <div class="message-checkbox" @click.stop>
             <el-checkbox-group v-model="selectedMessages">
               <el-checkbox :label="message.id" />
             </el-checkbox-group>
@@ -172,7 +172,7 @@
         <div class="dialog-footer">
           <el-button @click="messageDetailVisible = false">关闭</el-button>
           <el-button
-            v-if="activeTab === 'inbox' && !replyVisible"
+            v-if="!replyVisible"
             type="success"
             @click="showReplyForm"
           >
@@ -389,14 +389,18 @@ const handleReply = async () => {
   
   await replyFormRef.value.validate(async (valid) => {
     if (valid && selectedMessage.value) {
-      replyLoading.value = true
-      try {
-        // 调用API发送回复
-        const res = await request.post('/api/messages', {
-          recipient_id: selectedMessage.value.sender_id,
-          title: replyForm.value.title,
-          content: replyForm.value.content
-        })
+          replyLoading.value = true
+          try {
+            // 根据当前标签页判断收件人
+            // 如果在"已发送"标签页，回复给原收件人，否则回复给原发送人
+            const recipientId = activeTab.value === 'sent' ? selectedMessage.value.recipient_id : selectedMessage.value.sender_id
+            
+            // 调用API发送回复
+            const res = await request.post('/api/messages', {
+              recipient_id: recipientId,
+              title: replyForm.value.title,
+              content: replyForm.value.content
+            })
         
         if (res.status === 'success') {
           ElMessage.success('回复发送成功')
@@ -424,8 +428,10 @@ const markAsRead = async (message) => {
     if (res.status === 'success') {
       message.is_read = true
       ElMessage.success('已标记为已读')
-      // 重新获取消息列表以更新状态
-      await fetchMessages()
+      // 更新未读计数
+      if (activeTab.value === 'inbox') {
+        unreadCount.value = computedUnreadCount.value
+      }
     }
   } catch (error) {
     console.error('标记已读失败:', error)
@@ -443,8 +449,10 @@ const toggleReadStatus = async (message) => {
     if (res.status === 'success') {
       message.is_read = !message.is_read
       ElMessage.success(message.is_read ? '已标记为已读' : '已标记为未读')
-      // 重新获取消息列表以更新状态
-      await fetchMessages()
+      // 更新未读计数
+      if (activeTab.value === 'inbox') {
+        unreadCount.value = computedUnreadCount.value
+      }
     }
   } catch (error) {
     console.error('更新状态失败:', error)

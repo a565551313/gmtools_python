@@ -19,13 +19,13 @@ const router = createRouter({
             path: '/admin',
             name: 'super-admin',
             component: () => import('@/views/admin/SuperAdmin.vue'),
-            meta: { requiresAuth: true }
+            meta: { requiresAuth: true, requiresAdmin: true }
         },
         {
             path: '/activity-management',
             name: 'activity-management',
             component: () => import('@/views/admin/modules/ActivityManagementPanel.vue'),
-            meta: { requiresAuth: true }
+            meta: { requiresAuth: true, requiresAdmin: true }
         },
         {
             path: '/activity/:id',
@@ -42,6 +42,26 @@ router.beforeEach(async (to, from, next) => {
         next('/login')
     } else if (to.path === '/login' && authStore.isLoggedIn) {
         next('/')
+    } else if (to.meta.requiresAdmin) {
+        // Try to fetch user if logged in but no user data
+        if (authStore.isLoggedIn && !authStore.user) {
+            try {
+                await authStore.fetchUser()
+            } catch (e) {
+                next('/login')
+                return
+            }
+        }
+        
+        // 检查用户是否为管理员
+        const user = authStore.user
+        const isAdmin = user?.role === 'admin' || user?.role === 'super_admin'
+        if (!isAdmin) {
+            // 普通用户无法访问管理员页面，重定向到首页
+            next('/')
+        } else {
+            next()
+        }
     } else {
         // Try to fetch user if logged in but no user data
         if (authStore.isLoggedIn && !authStore.user) {
