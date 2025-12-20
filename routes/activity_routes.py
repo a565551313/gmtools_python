@@ -131,10 +131,12 @@ async def get_activity(
         activity = activity_manager.get_activity(activity_id)
         if not activity:
             raise HTTPException(status_code=404, detail="活动不存在")
-        
+
         # 获取奖项
         rewards = activity_manager.get_rewards(activity_id)
         rewards_data = [reward.to_dict() for reward in rewards]
+
+        logger.info(f"活动 {activity_id} 的奖项数据: {[{'id': r['id'], 'name': r['name'], 'remaining_quantity': r['remaining_quantity']} for r in rewards_data]}")
         
         # 获取统计数据
         stats = activity_manager.get_statistics(activity_id)
@@ -539,21 +541,34 @@ async def resend_reward(
 ):
     """补发奖励"""
     try:
+        logger.info(f"开始补发奖励，记录ID: {record_id}")
+
         # 调用补发逻辑
         success, message = activity_manager.resend_reward(record_id)
-        
+
+        logger.info(f"补发结果: success={success}, message={message}")
+
         if success:
             return {
                 "success": True,
                 "message": message
             }
         else:
-            raise HTTPException(status_code=500, detail=message)
-            
+            # 根据错误消息判断合适的HTTP状态码
+            if "记录不存在" in message:
+                status_code = 404
+            elif "没有奖品" in message:
+                status_code = 400
+            else:
+                status_code = 500
+
+            logger.warning(f"补发失败，返回状态码 {status_code}: {message}")
+            raise HTTPException(status_code=status_code, detail=message)
+
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"补发奖励失败: {str(e)}")
+        logger.error(f"补发奖励失败: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"补发失败: {str(e)}")
 
 @activity_router.delete("/{activity_id}/participations/{record_id}")

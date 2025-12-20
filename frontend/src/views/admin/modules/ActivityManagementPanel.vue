@@ -769,7 +769,20 @@ async function handleResend(record) {
     }
   } catch (error) {
     console.error('补发失败:', error)
-    ElMessage.error('网络请求失败')
+    
+    // 根据HTTP状态码显示不同错误信息
+    if (error.response) {
+      const status = error.response.status
+      if (status === 404) {
+        ElMessage.error('记录不存在')
+      } else if (status === 400) {
+        ElMessage.error('该记录没有奖品，无法补发')
+      } else {
+        ElMessage.error('补发失败，请稍后重试')
+      }
+    } else {
+      ElMessage.error('网络请求失败')
+    }
   } finally {
     record.resending = false
   }
@@ -967,9 +980,11 @@ function resetForm() {
 async function viewActivity(activityId) {
   try {
     const result = await request.get(`/api/activity/${activityId}`)
-    
+
     if (result.status === 'success' || result.success) {
       currentActivity.value = result.data
+      console.log('加载的活动数据:', result.data)
+      console.log('奖品数据:', result.data?.rewards)
       showDetailDialog.value = true
     } else {
       ElMessage.error('加载活动详情失败')
@@ -1059,18 +1074,20 @@ async function deleteActivity(activityId) {
 // 保存奖项
 async function saveReward() {
   if (!rewardFormRef.value) return
-  
+
   await rewardFormRef.value.validate(async (valid) => {
     if (!valid) return
 
     try {
       if (!currentActivity.value) return
-      
+
       const activityId = currentActivity.value.activity?.id || currentActivity.value.id
       const rewardData = {
         ...rewardForm,
         value: JSON.parse(rewardForm.value_json || '{}')
       }
+
+      console.log('发送更新数据:', rewardData)
     
     let result
     if (rewardForm.id) {
@@ -1085,7 +1102,9 @@ async function saveReward() {
       ElMessage.success(rewardForm.id ? '奖项更新成功' : '奖项添加成功')
       resetRewardForm()
       showAddRewardDialog.value = false
-      viewActivity(activityId) // 刷新详情
+      // 强制重新加载活动详情
+      await viewActivity(activityId)
+      console.log('更新后的活动数据:', currentActivity.value)
     } else {
       ElMessage.error(result.message || '操作失败')
     }

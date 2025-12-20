@@ -5,11 +5,13 @@
 
 import sqlite3
 import json
+import logging
 from datetime import datetime
 from typing import List, Optional, Dict, Any, Tuple
 from dataclasses import dataclass, asdict
 from services.gift_service import GiftService
 
+logger = logging.getLogger(__name__)
 
 # 导入数据库连接
 try:
@@ -321,22 +323,30 @@ class ActivityManager:
             
             # 获取奖项
             rewards = self.get_rewards(activity_id)
-            # 允许剩余数量为0的奖项，用于"谢谢参与"等特殊奖项
-            available_rewards = [r for r in rewards if r.remaining_quantity > 0 or r.remaining_quantity == -1]
+            # 只有剩余数量>0的奖项才参与抽奖
+            available_rewards = [r for r in rewards if r.remaining_quantity > 0]
+
+            logger.info(f"活动 {activity_id} 的可用奖项: {len(available_rewards)}个，总概率: {sum(r.probability for r in available_rewards)}%")
+
+            # 如果没有可用奖项，记录警告
+            if not available_rewards:
+                logger.warning(f"活动 {activity_id} 没有可用奖项（所有奖品剩余数量为0）")
             
             # 随机抽奖
             total_probability = sum(r.probability for r in available_rewards)
-            
+
             # 加权随机选择 (基于100%)
             rand_val = random.uniform(0, 100)
             cumulative = 0
             selected_reward = None
-            
-            for reward in available_rewards:
-                cumulative += reward.probability
-                if rand_val <= cumulative:
-                    selected_reward = reward
-                    break
+
+            # 只有当随机数在总概率范围内时才可能中奖
+            if rand_val <= total_probability:
+                for reward in available_rewards:
+                    cumulative += reward.probability
+                    if rand_val <= cumulative:
+                        selected_reward = reward
+                        break
             
             # 记录参与
             conn = get_db_connection()
@@ -344,15 +354,25 @@ class ActivityManager:
             
             # 尝试发放奖励
             status = 1 # 1: 成功, 2: 失败/待补发
+            reward_message = selected_reward.name if selected_reward else "谢谢参与"
+
             if selected_reward:
                 try:
-                    # 只对有剩余数量的奖项发放
+                    # 检查奖品是否可以发放
                     if selected_reward.remaining_quantity > 0:
+                        # 有剩余数量，尝试发放
                         success = self.distribute_reward(game_id, selected_reward)
                         status = 1 if success else 2
-                    else:
-                        # 对于剩余数量为-1的特殊奖项，直接标记为成功
+                        logger.info(f"发放奖品 {selected_reward.name}: success={success}")
+                    elif selected_reward.remaining_quantity == -1:
+                        # 特殊奖项（无限数量），直接标记为成功
                         status = 1
+                        logger.info(f"特殊奖项 {selected_reward.name} 中奖")
+                    else:
+                        # 奖品已无剩余，但仍按概率中奖，当作谢谢参与
+                        status = 1
+                        reward_message = "谢谢参与"
+                        logger.info(f"奖品 {selected_reward.name} 已无剩余，当作谢谢参与")
                 except Exception as e:
                     logger.error(f"自动发奖失败: {str(e)}")
                     status = 2
@@ -361,7 +381,7 @@ class ActivityManager:
                 activity_id=activity_id,
                 game_id=game_id,
                 reward_id=selected_reward.id if selected_reward else None,
-                reward_name=selected_reward.name if selected_reward else "谢谢参与",
+                reward_name=reward_message,
                 status=status,
                 ip_address=ip_address,
                 user_agent=user_agent
@@ -383,9 +403,18 @@ class ActivityManager:
             conn.commit()
             conn.close()
             
+            # 根据实际发放结果返回消息
+            if selected_reward:
+                if reward_message == "谢谢参与":
+                    message = "谢谢参与，下次再来！"
+                else:
+                    message = f"恭喜获得：{reward_message}"
+            else:
+                message = "谢谢参与，下次再来！"
+
             return {
                 "success": True,
-                "message": "抽奖成功" if selected_reward else "谢谢参与，下次再来！",
+                "message": message,
                 "reward": selected_reward.to_dict() if selected_reward else None
             }
         except Exception as e:
@@ -520,45 +549,58 @@ class ActivityManager:
 
     def resend_reward(self, participation_id: int) -> Tuple[bool, str]:
         """补发奖励"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # 获取记录
-        cursor.execute('''
-        SELECT p.*, r.value as reward_value 
-        FROM activity_participations p
-        LEFT JOIN activity_rewards r ON p.reward_id = r.id
-        WHERE p.id=?
-        ''', (participation_id,))
-        
-        row = cursor.fetchone()
-        conn.close()
-        
-        if not row:
-            return False, "记录不存在"
-            
-        if not row['reward_id']:
-            return False, "该记录没有奖品"
-            
-        # 构造临时 reward 对象用于发放
-        @dataclass
-        class TempReward:
-            value: str
-            
-        reward = TempReward(value=row['reward_value'])
-        
         try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+
+            logger.info(f"查询参与记录: {participation_id}")
+
+            # 获取记录
+            cursor.execute('''
+            SELECT p.*, r.value as reward_value
+            FROM activity_participations p
+            LEFT JOIN activity_rewards r ON p.reward_id = r.id
+            WHERE p.id=?
+            ''', (participation_id,))
+
+            row = cursor.fetchone()
+            conn.close()
+
+            if not row:
+                logger.warning(f"参与记录不存在: {participation_id}")
+                return False, "记录不存在"
+
+            logger.info(f"找到记录: game_id={row['game_id']}, reward_id={row['reward_id']}, status={row['status']}")
+
+            if not row['reward_id']:
+                logger.warning(f"记录没有奖品: {participation_id}")
+                return False, "该记录没有奖品"
+
+            # 构造临时 reward 对象用于发放
+            @dataclass
+            class TempReward:
+                value: str
+
+            reward = TempReward(value=row['reward_value'])
+            logger.info(f"准备发放奖励: game_id={row['game_id']}, reward_value={row['reward_value']}")
+
             success = self.distribute_reward(row['game_id'], reward)
-            
+
             # 更新状态
             new_status = 1 if success else 2
-            self.update_participation_status(participation_id, new_status)
-            
+            status_updated = self.update_participation_status(participation_id, new_status)
+
+            logger.info(f"补发完成: success={success}, status_updated={status_updated}")
+
             return success, "补发成功" if success else "补发失败"
-            
+
         except Exception as e:
-            logger.error(f"补发奖励异常: {str(e)}")
-            self.update_participation_status(participation_id, 2)
+            logger.error(f"补发奖励异常: {str(e)}", exc_info=True)
+            # 即使出错也要尝试更新状态
+            try:
+                self.update_participation_status(participation_id, 2)
+            except Exception as status_error:
+                logger.error(f"更新状态也失败: {str(status_error)}")
             return False, f"补发异常: {str(e)}"
 
     def update_participation_status(self, participation_id: int, status: int) -> bool:
@@ -601,14 +643,14 @@ class ActivityManager:
         
         try:
             cursor.execute('''
-            UPDATE activity_rewards 
-            SET name=?, description=?, type=?, value=?, probability=?, 
-                total_quantity=?, icon=?, order_index=?
+            UPDATE activity_rewards
+            SET name=?, description=?, type=?, value=?, probability=?,
+                total_quantity=?, remaining_quantity=?, icon=?, order_index=?
             WHERE id=?
             ''', (
                 reward.name, reward.description, reward.type, reward.value,
-                reward.probability, reward.total_quantity, reward.icon, 
-                reward.order_index, reward_id
+                reward.probability, reward.total_quantity, reward.remaining_quantity,
+                reward.icon, reward.order_index, reward_id
             ))
             conn.commit()
             return cursor.rowcount > 0
