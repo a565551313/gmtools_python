@@ -71,6 +71,21 @@ async def get_current_admin_user(
     return current_user
 
 
+async def get_current_super_admin(
+    current_user: User = Depends(get_current_active_user)
+) -> User:
+    """
+    获取当前超级管理员用户
+    用于需要超级管理员权限的路由
+    """
+    if current_user.role != "super_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Requires super admin privileges"
+        )
+    return current_user
+
+
 async def get_optional_user(
     request: Request
 ) -> Optional[User]:

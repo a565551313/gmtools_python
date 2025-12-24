@@ -278,6 +278,10 @@ app.include_router(activity_router)
 from routes.message_routes import router as message_router
 app.include_router(message_router)
 
+# 注册道具赠送管理路由
+from routes.item_gift_routes import router as item_gift_router
+app.include_router(item_gift_router, prefix="/api", tags=["Item Gift"])
+
 @app.middleware("http")
 
 async def log_requests(request: Request, call_next):
@@ -366,6 +370,10 @@ async def handle_service_request(service, request: ModuleRequest):
 # 注册权限管理路由
 from routes.permission_routes import router as permission_router
 app.include_router(permission_router)
+
+# 注册等级配置管理路由
+from routes.level_config_routes import router as level_config_router
+app.include_router(level_config_router)
 
 # 注册活动管理路由
 from routes.activity_routes import activity_router

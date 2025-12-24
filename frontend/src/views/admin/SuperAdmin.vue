@@ -192,8 +192,14 @@
             <!-- 权限配置 -->
             <LevelPermissionsPanel v-else-if="currentModule === 'permissions'" />
             
+            <!-- 等级管理 -->
+            <LevelConfigPanel v-else-if="currentModule === 'levelConfig'" />
+            
             <!-- 活动管理 -->
             <ActivityManagementPanel v-else-if="currentModule === 'events'" ref="activityPanelRef" />
+
+            <!-- 道具限制管理 -->
+            <ItemGiftManagementPanel v-else-if="currentModule === 'itemGift'" />
 
             <!-- 即将上线的模块 -->
             <div v-else class="coming-soon">
@@ -233,14 +239,17 @@ import {
   Setting, Close, ArrowRight, ArrowLeft, Menu, User, 
   UserFilled, Key, Ticket, Bell, Message, Document, 
   Present, Star, HomeFilled, Refresh, FullScreen,
-  ArrowDown, SwitchButton, Plus, DArrowLeft, DArrowRight
+  ArrowDown, SwitchButton, Plus, DArrowLeft, DArrowRight, Goods
 } from '@element-plus/icons-vue'
 
 // 子模块组件
 import UserManagementPanel from './modules/UserManagementPanel.vue'
 import ActivationCodesPanel from './modules/ActivationCodesPanel.vue'
 import LevelPermissionsPanel from './modules/LevelPermissionsPanel.vue'
+import LevelConfigPanel from './modules/LevelConfigPanel.vue'
+
 import ActivityManagementPanel from '@/views/admin/modules/ActivityManagementPanel.vue'
+import ItemGiftManagementPanel from './modules/ItemGiftManagementPanel.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -271,6 +280,18 @@ const coreModules = {
     name: '权限配置',
     description: '配置不同等级用户的功能权限',
     icon: markRaw(Key),
+    badge: null
+  },
+  levelConfig: {
+    name: '等级管理',
+    description: '管理等级配置，自定义等级名称',
+    icon: markRaw(Star),
+    badge: null
+  },
+  itemGift: {
+    name: '道具限制',
+    description: '管理道具白名单及等级发送限制',
+    icon: markRaw(Goods),
     badge: null
   }
 }

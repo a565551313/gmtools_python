@@ -12,7 +12,7 @@
         </div>
       </div>
       <el-select v-model="selectedLevel" @change="loadLevelPermissions" class="level-select">
-        <el-option v-for="level in 10" :key="level" :label="'Level ' + level" :value="level" />
+        <el-option v-for="config in levelConfigs" :key="config.level_value" :label="config.display_name" :value="config.level_value" />
       </el-select>
       <div class="selector-tip">
         <el-icon><InfoFilled /></el-icon>
@@ -88,6 +88,7 @@ import {
 const loading = ref(false)
 const saving = ref(false)
 const selectedLevel = ref(1)
+const levelConfigs = ref([])
 const allPermissions = ref({})
 const selectedPermissions = ref([])
 const originalPermissions = ref([])
@@ -141,6 +142,23 @@ function selectAll() {
 
 function deselectAll() {
   selectedPermissions.value = []
+}
+
+async function loadLevelConfigs() {
+  try {
+    const res = await request.get('/api/level-configs')
+    levelConfigs.value = res.data || []
+    // 如果当前选中的等级不在列表中，重置为第一个
+    if (levelConfigs.value.length > 0 && !levelConfigs.value.find(c => c.level_value === selectedLevel.value)) {
+      selectedLevel.value = levelConfigs.value[0].level_value
+    }
+  } catch (e) {
+    // 回退
+    levelConfigs.value = Array.from({ length: 10 }, (_, i) => ({
+      level_value: i + 1,
+      display_name: `Level ${i + 1}`
+    }))
+  }
 }
 
 async function loadAllPermissions() {
@@ -200,6 +218,7 @@ async function savePermissions() {
 }
 
 onMounted(async () => {
+  await loadLevelConfigs()
   await loadAllPermissions()
   await loadLevelPermissions()
 })
