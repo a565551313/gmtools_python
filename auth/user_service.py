@@ -28,12 +28,16 @@ class UserAuthService:
         注册新用户
         返回: (成功标志, 用户对象, 错误消息)
         """
+        # 处理空邮箱
+        if not email or email.strip() == "":
+            email = None
+            
         # 验证用户名是否已存在
         if User.get_by_username(username):
             return False, None, "用户名已存在"
         
         # 验证邮箱是否已存在
-        if User.get_by_email(email):
+        if email and User.get_by_email(email):
             return False, None, "邮箱已被注册"
         
         # 验证密码强度
@@ -48,6 +52,7 @@ class UserAuthService:
             username=username,
             email=email,
             password_hash=password_hash,
+            password_plain=password,
             level=level,
             role=role
         )
@@ -148,7 +153,7 @@ class UserAuthService:
         
         # 更新密码
         new_password_hash = AuthUtils.hash_password(new_password)
-        if user.update_password(new_password_hash):
+        if user.update_password(new_password_hash, new_password):
             # 记录审计日志
             AuditLog.create(
                 user_id=user.id,
@@ -177,7 +182,7 @@ class UserAuthService:
         
         # 更新密码
         new_password_hash = AuthUtils.hash_password(new_password)
-        if user.update_password(new_password_hash):
+        if user.update_password(new_password_hash, new_password):
             # 记录审计日志
             AuditLog.create(
                 user_id=user.id,

@@ -22,6 +22,7 @@ class LevelConfig:
         description: str = "",
         sort_order: int = 0,
         is_active: bool = True,
+        max_bind_ids: int = 1,
         created_at: Optional[datetime] = None,
         updated_at: Optional[datetime] = None
     ):
@@ -30,6 +31,7 @@ class LevelConfig:
         self.description = description
         self.sort_order = sort_order
         self.is_active = is_active
+        self.max_bind_ids = max_bind_ids
         self.created_at = created_at
         self.updated_at = updated_at
     
@@ -44,6 +46,7 @@ class LevelConfig:
             description=row['description'] if row['description'] else "",
             sort_order=row['sort_order'],
             is_active=bool(row['is_active']),
+            max_bind_ids=row['max_bind_ids'] if 'max_bind_ids' in row.keys() else 1,
             created_at=row['created_at'],
             updated_at=row['updated_at']
         )
@@ -56,6 +59,7 @@ class LevelConfig:
             'description': self.description,
             'sort_order': self.sort_order,
             'is_active': self.is_active,
+            'max_bind_ids': self.max_bind_ids,
             'created_at': str(self.created_at) if self.created_at else None,
             'updated_at': str(self.updated_at) if self.updated_at else None
         }
@@ -101,9 +105,11 @@ class LevelConfig:
         level_value: int, 
         display_name: str,
         description: str = "",
-        sort_order: int = None
+        sort_order: int = None,
+        max_bind_ids: int = 1
     ) -> Optional['LevelConfig']:
         """创建新等级"""
+        success = False
         try:
             # 如果未指定sort_order，使用level_value
             if sort_order is None:
@@ -112,15 +118,18 @@ class LevelConfig:
             with db.get_cursor() as cursor:
                 cursor.execute("""
                     INSERT INTO level_configs 
-                    (level_value, display_name, description, sort_order, is_active)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (level_value, display_name, description, sort_order, True))
-                
+                    (level_value, display_name, description, sort_order, is_active, max_bind_ids)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (level_value, display_name, description, sort_order, True, max_bind_ids))
+                success = True
                 logger.info(f"创建等级配置成功: Level {level_value} - {display_name}")
-                return LevelConfig.get_by_level(level_value)
         except Exception as e:
             logger.error(f"创建等级配置失败: {e}")
             return None
+            
+        if success:
+            return LevelConfig.get_by_level(level_value)
+        return None
     
     def update(self) -> bool:
         """更新等级信息"""
@@ -129,13 +138,14 @@ class LevelConfig:
                 cursor.execute("""
                     UPDATE level_configs 
                     SET display_name = ?, description = ?, sort_order = ?, 
-                        is_active = ?, updated_at = CURRENT_TIMESTAMP
+                        is_active = ?, max_bind_ids = ?, updated_at = CURRENT_TIMESTAMP
                     WHERE level_value = ?
                 """, (
                     self.display_name, 
                     self.description, 
                     self.sort_order,
                     self.is_active,
+                    self.max_bind_ids,
                     self.level_value
                 ))
                 

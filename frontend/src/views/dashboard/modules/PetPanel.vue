@@ -1,6 +1,6 @@
 <template>
   <div class="pet-manager">
-    <!-- 标签页切换 -->
+    <!-- 顶部标签：宝宝 / 坐骑 -->
     <div class="tab-header">
       <button 
         :class="['tab-btn', { active: activeTab === 'pet' }]"
@@ -48,9 +48,42 @@
         </el-button>
       </div>
 
-      <!-- 内容区域 -->
-      <div class="content-grid">
-        <!-- 左侧：基础属性 -->
+      <!-- 子页签：基础属性 / 天生技能 / 功德录 / 技能设置 / 装备定制 -->
+      <div class="sub-tab-header">
+        <button
+          :class="['sub-tab-btn', { active: activePetPage === 'basic' }]"
+          @click="activePetPage = 'basic'"
+        >
+          基础属性
+        </button>
+        <button
+          :class="['sub-tab-btn', { active: activePetPage === 'innate' }]"
+          @click="activePetPage = 'innate'"
+        >
+          天生技能
+        </button>
+        <button
+          :class="['sub-tab-btn', { active: activePetPage === 'merit' }]"
+          @click="activePetPage = 'merit'"
+        >
+          功德录
+        </button>
+        <button
+          :class="['sub-tab-btn', { active: activePetPage === 'skills' }]"
+          @click="activePetPage = 'skills'"
+        >
+          技能设置
+        </button>
+        <button
+          :class="['sub-tab-btn', { active: activePetPage === 'equip' }]"
+          @click="activePetPage = 'equip'"
+        >
+          装备定制
+        </button>
+      </div>
+
+      <!-- 基础属性页 -->
+      <div v-show="activePetPage === 'basic'" class="pet-page">
         <section class="section-card">
           <header class="section-header">
             <span class="section-icon blue">📊</span>
@@ -68,54 +101,78 @@
             </div>
           </div>
         </section>
+      </div>
 
-        <!-- 右侧：天生技能 + 功德录 -->
-        <div class="side-cards">
-          <!-- 天生技能 -->
-          <section class="section-card compact">
-            <header class="section-header">
-              <span class="section-icon purple">✨</span>
-              <div class="section-title">
-                <h3>天生技能</h3>
-              </div>
-            </header>
-            <div class="section-body">
-              <div class="field-grid cols-2">
-                <div v-for="i in 4" :key="i" class="field">
-                  <label>天生{{ i }}</label>
-                  <el-input v-model="petForm.innate['天生0' + i]" placeholder="--" size="small" />
-                </div>
+      <!-- 天生技能页 -->
+      <div v-show="activePetPage === 'innate'" class="pet-page">
+        <section class="section-card">
+          <header class="section-header">
+            <span class="section-icon purple">✨</span>
+            <div class="section-title">
+              <h3>天生技能</h3>
+              <p>配置宝宝自带天生技能</p>
+            </div>
+          </header>
+          <div class="section-body">
+            <div class="field-grid cols-2">
+              <div v-for="i in 4" :key="i" class="field">
+                <label>天生{{ i }}</label>
+                <el-input
+                  v-model="petForm.innate['天生0' + i]"
+                  placeholder="--"
+                  size="small"
+                />
               </div>
             </div>
-          </section>
+          </div>
+        </section>
+      </div>
 
-          <!-- 功德录 -->
-          <section class="section-card compact">
-            <header class="section-header">
-              <span class="section-icon red">📜</span>
-              <div class="section-title">
-                <h3>功德录</h3>
-              </div>
-              <div class="section-actions">
-                <el-button size="small" @click="activateMerit">激活</el-button>
-                <el-button size="small" type="primary" @click="modifyMerit">修改</el-button>
-              </div>
-            </header>
-            <div class="section-body">
-              <div class="merit-list">
-                <div v-for="(item, index) in meritForm.items" :key="index" class="merit-row">
-                  <el-select v-model="item.type" placeholder="属性" size="small" class="merit-type">
-                    <el-option v-for="opt in meritTypesList" :key="opt" :label="opt" :value="opt" />
-                  </el-select>
-                  <el-input v-model="item.value" placeholder="数值" size="small" class="merit-value" />
-                </div>
+      <!-- 功德录页 -->
+      <div v-show="activePetPage === 'merit'" class="pet-page">
+        <section class="section-card">
+          <header class="section-header">
+            <span class="section-icon red">📜</span>
+            <div class="section-title">
+              <h3>功德录</h3>
+              <p>自定义功德录属性加成</p>
+            </div>
+            <div class="section-actions">
+              <el-button size="small" @click="activateMerit">激活</el-button>
+              <el-button size="small" type="primary" @click="modifyMerit">修改</el-button>
+            </div>
+          </header>
+          <div class="section-body">
+            <div class="merit-list">
+              <div v-for="(item, index) in meritForm.items" :key="index" class="merit-row">
+                <el-select
+                  v-model="item.type"
+                  placeholder="属性"
+                  size="small"
+                  class="merit-type"
+                >
+                  <el-option
+                    v-for="opt in meritTypesList"
+                    :key="opt"
+                    :label="opt"
+                    :value="opt"
+                  />
+                </el-select>
+                <el-input
+                  v-model="item.value"
+                  placeholder="数值"
+                  size="small"
+                  class="merit-value"
+                />
               </div>
             </div>
-          </section>
-        </div>
+          </div>
+        </section>
+      </div>
 
-        <!-- 技能设置 - 全宽 -->
-        <section class="section-card full-width">
+      <!-- 技能设置页 -->
+      <div v-show="activePetPage === 'skills'" class="pet-page">
+        <section class="section-card">
           <header class="section-header">
             <span class="section-icon amber">⚔️</span>
             <div class="section-title">
@@ -136,9 +193,11 @@
             </div>
           </div>
         </section>
+      </div>
 
-        <!-- 宝宝装备 - 全宽 -->
-        <section class="section-card full-width">
+      <!-- 装备定制页 -->
+      <div v-show="activePetPage === 'equip'" class="pet-page">
+        <section class="section-card">
           <header class="section-header">
             <span class="section-icon cyan">🛡️</span>
             <div class="section-title">
@@ -184,7 +243,12 @@
                 <div class="field">
                   <label>附加属性1</label>
                   <el-select v-model="petEquipForm.subAttr1" placeholder="选择属性" clearable>
-                    <el-option v-for="opt in commonAttrsList" :key="opt" :label="opt" :value="opt" />
+                    <el-option
+                      v-for="opt in commonAttrsList"
+                      :key="opt"
+                      :label="opt"
+                      :value="opt"
+                    />
                   </el-select>
                 </div>
                 <div class="field">
@@ -194,7 +258,12 @@
                 <div class="field">
                   <label>附加属性2</label>
                   <el-select v-model="petEquipForm.subAttr2" placeholder="选择属性" clearable>
-                    <el-option v-for="opt in commonAttrsList" :key="opt" :label="opt" :value="opt" />
+                    <el-option
+                      v-for="opt in commonAttrsList"
+                      :key="opt"
+                      :label="opt"
+                      :value="opt"
+                    />
                   </el-select>
                 </div>
                 <div class="field">
@@ -278,7 +347,11 @@
           </header>
           <div class="section-body">
             <div class="mount-skills">
-              <div v-for="(skill, index) in mountForm.skills" :key="index" class="field">
+              <div
+                v-for="(skill, index) in mountForm.skills"
+                :key="index"
+                class="field"
+              >
                 <label>技能 {{ index + 1 }}</label>
                 <el-select 
                   v-model="mountForm.skills[index]" 
@@ -286,7 +359,12 @@
                   clearable 
                   filterable
                 >
-                  <el-option v-for="s in mountSkillsList" :key="s" :label="s" :value="s" />
+                  <el-option
+                    v-for="s in mountSkillsList"
+                    :key="s"
+                    :label="s"
+                    :value="s"
+                  />
                 </el-select>
               </div>
             </div>
@@ -308,6 +386,7 @@ const playerId = inject('playerId')
 const logToConsole = inject('logToConsole')
 
 const activeTab = ref('pet')
+const activePetPage = ref('basic')
 
 const fields = {
   attrs: [
@@ -317,21 +396,21 @@ const fields = {
 }
 
 const mountSkillsList = [
-  "反震", "吸血", "反击", "连击", "飞行", "感知", "再生", "冥思",
-  "慧根", "必杀", "幸运", "神迹", "招架", "永恒", "偷袭", "毒",
-  "驱鬼", "鬼魂术", "魔之心", "神佑复生", "精神集中", "法术连击",
-  "法术暴击", "法术波动", "土属性吸收", "火属性吸收", "水属性吸收"
+  '反震', '吸血', '反击', '连击', '飞行', '感知', '再生', '冥思',
+  '慧根', '必杀', '幸运', '神迹', '招架', '永恒', '偷袭', '毒',
+  '驱鬼', '鬼魂术', '魔之心', '神佑复生', '精神集中', '法术连击',
+  '法术暴击', '法术波动', '土属性吸收', '火属性吸收', '水属性吸收'
 ]
 
 const meritTypesList = [
-  "气血", "伤害", "防御", "速度", "穿刺等级", "治疗能力",
-  "固定伤害", "法术伤害", "法术防御", "气血回复效果",
-  "封印命中等级", "抵抗封印等级", "法术暴击等级",
-  "物理暴击等级", "抗法术暴击等级", "抗物理暴击等级"
+  '气血', '伤害', '防御', '速度', '穿刺等级', '治疗能力',
+  '固定伤害', '法术伤害', '法术防御', '气血回复效果',
+  '封印命中等级', '抵抗封印等级', '法术暴击等级',
+  '物理暴击等级', '抗法术暴击等级', '抗物理暴击等级'
 ]
 
 const commonAttrsList = [
-  "伤害", "灵力", "敏捷", "耐力", "体质", "力量", "魔力", "气血", "魔法"
+  '伤害', '灵力', '敏捷', '耐力', '体质', '力量', '魔力', '气血', '魔法'
 ]
 
 // 宝宝相关
@@ -376,7 +455,7 @@ for (let i = 1; i <= 4; i++) {
 }
 
 function getDynamicAttrLabel(type) {
-  const map = { '护腕': '命中', '项圈': '速度', '铠甲': '防御' }
+  const map = { 护腕: '命中', 项圈: '速度', 铠甲: '防御' }
   return map[type] || '主属性'
 }
 
@@ -470,7 +549,7 @@ async function modifyMerit() {
   const modifyData = {}
   meritForm.items.forEach((item, index) => {
     if (item.type && item.value) {
-      modifyData[index + 1] = { '属性': item.type, '数值': parseInt(item.value) }
+      modifyData[index + 1] = { 属性: item.type, 数值: parseInt(item.value) }
     }
   })
 
@@ -490,14 +569,14 @@ async function customPetEquip() {
   if (!playerId.value) return ElMessage.error('请输入角色ID')
 
   const equipData = {
-    '类型': petEquipForm.type,
-    '等级': parseInt(petEquipForm.level),
-    '属性值': parseInt(petEquipForm.mainAttrValue),
-    '属性1': petEquipForm.subAttr1,
-    '数值1': parseInt(petEquipForm.subAttr1Value),
-    '属性2': petEquipForm.subAttr2,
-    '数值2': parseInt(petEquipForm.subAttr2Value),
-    '特效': petEquipForm.effect
+    类型: petEquipForm.type,
+    等级: parseInt(petEquipForm.level),
+    属性值: parseInt(petEquipForm.mainAttrValue),
+    属性1: petEquipForm.subAttr1,
+    数值1: parseInt(petEquipForm.subAttr1Value),
+    属性2: petEquipForm.subAttr2,
+    数值2: parseInt(petEquipForm.subAttr2Value),
+    特效: petEquipForm.effect
   }
 
   try {
@@ -619,7 +698,7 @@ async function modifyMount() {
   border: 1px solid var(--border-color);
 }
 
-/* ========== 标签页头部 ========== */
+/* 顶部标签：宝宝 / 坐骑 */
 .tab-header {
   display: flex;
   gap: 4px;
@@ -658,19 +737,19 @@ async function modifyMount() {
   font-size: 18px;
 }
 
-/* ========== 标签页内容 ========== */
+/* 外层标签内容 */
 .tab-content {
   padding: 20px;
 }
 
-/* ========== 操作栏 ========== */
+/* 顶部操作栏 */
 .action-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   padding: 16px;
   background: var(--bg-primary);
   border-radius: var(--radius-md);
@@ -694,30 +773,49 @@ async function modifyMount() {
   font-weight: 500;
 }
 
-/* ========== 内容网格 ========== */
-.content-grid {
-  display: grid;
-  grid-template-columns: 1fr 360px;
-  gap: 20px;
-}
-
-.side-cards {
+/* 子页签：基础属性 / 天生技能 / 功德录 / 技能设置 / 装备定制 */
+.sub-tab-header {
   display: flex;
-  flex-direction: column;
-  gap: 20px;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
 }
 
-.full-width {
-  grid-column: 1 / -1;
+.sub-tab-btn {
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
 }
 
+.sub-tab-btn:hover {
+  background: var(--bg-tertiary);
+}
+
+.sub-tab-btn.active {
+  background: var(--accent-blue);
+  border-color: var(--accent-blue);
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.35);
+}
+
+/* 每个宝宝子页面容器 */
+.pet-page {
+  margin-top: 4px;
+}
+
+/* 坐骑内容布局 */
 .mount-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 20px;
 }
 
-/* ========== 区块卡片 ========== */
+/* 区块卡片 */
 .section-card {
   background: var(--bg-primary);
   border-radius: var(--radius-md);
@@ -729,10 +827,6 @@ async function modifyMount() {
 
 .section-card:hover {
   box-shadow: var(--shadow-lg);
-}
-
-.section-card.compact .section-body {
-  padding: 14px 16px;
 }
 
 .section-header {
@@ -795,7 +889,7 @@ async function modifyMount() {
   padding: 18px;
 }
 
-/* ========== 表单字段 ========== */
+/* 表单字段 */
 .field {
   display: flex;
   flex-direction: column;
@@ -825,7 +919,7 @@ async function modifyMount() {
   box-shadow: inset 0 0 0 1px var(--accent-blue), 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-/* ========== 字段网格 ========== */
+/* 字段网格 */
 .field-grid {
   display: grid;
   gap: 14px;
@@ -839,7 +933,7 @@ async function modifyMount() {
   grid-template-columns: repeat(3, 1fr);
 }
 
-/* ========== 技能容器 ========== */
+/* 技能容器 */
 .skills-container {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -870,7 +964,7 @@ async function modifyMount() {
   flex: 1;
 }
 
-/* ========== 功德录 ========== */
+/* 功德录 */
 .merit-list {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -891,7 +985,7 @@ async function modifyMount() {
   flex-shrink: 0;
 }
 
-/* ========== 装备表单 ========== */
+/* 装备表单 */
 .equip-form {
   display: flex;
   flex-direction: column;
@@ -904,25 +998,24 @@ async function modifyMount() {
   gap: 16px;
 }
 
-/* ========== 坐骑技能 ========== */
+/* 坐骑技能 */
 .mount-skills {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 14px;
 }
 
-/* ========== 响应式 ========== */
+/* 响应式 */
 @media (max-width: 1024px) {
-  .content-grid {
+  .mount-grid {
     grid-template-columns: 1fr;
   }
 
-  .side-cards {
-    display: grid;
+  .equip-row {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .equip-row {
+  .field-grid.cols-3 {
     grid-template-columns: repeat(2, 1fr);
   }
 }
@@ -950,23 +1043,11 @@ async function modifyMount() {
     width: 100%;
   }
 
-  .side-cards {
+  .equip-row {
     grid-template-columns: 1fr;
-  }
-
-  .mount-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .field-grid.cols-3 {
-    grid-template-columns: repeat(2, 1fr);
   }
 
   .merit-list {
-    grid-template-columns: 1fr;
-  }
-
-  .equip-row {
     grid-template-columns: 1fr;
   }
 }
@@ -1014,9 +1095,19 @@ async function modifyMount() {
   .merit-value {
     width: 100%;
   }
+
+  .sub-tab-header {
+    gap: 6px;
+  }
+
+  .sub-tab-btn {
+    flex: 1 1 45%;
+    padding: 7px 10px;
+    font-size: 12px;
+  }
 }
 
-/* ========== 暗色模式 ========== */
+/* 暗色模式 */
 @media (prefers-color-scheme: dark) {
   .pet-manager {
     --bg-primary: #1e293b;

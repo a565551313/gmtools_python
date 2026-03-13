@@ -1,146 +1,161 @@
 <template>
   <div class="recharge-panel">
-    <!-- Currency Recharge -->
-    <div class="panel-card">
+    <!-- 统一充值面板 -->
+    <div class="panel-card main-card">
       <div class="card-header">
-        <div class="header-icon yellow">
+        <div class="header-icon gradient">
           <el-icon><Wallet /></el-icon>
         </div>
         <div class="header-text">
-          <h3>货币充值</h3>
-          <p>充值游戏内各类货币</p>
+          <h3>充值中心</h3>
+          <p>货币、GM权限、经验熟练度等充值</p>
         </div>
       </div>
       <div class="card-body">
-        <div class="form-grid cols-2">
-          <div class="form-item">
-            <label>货币类型</label>
-            <el-select v-model="form.currencyType" placeholder="选择类型">
-              <el-option label="仙玉" value="仙玉" />
-              <el-option label="点卡" value="点卡" />
-              <el-option label="银子" value="银子" />
-              <el-option label="储备" value="储备" />
-            </el-select>
-          </div>
-          <div class="form-item">
-            <label>充值数量</label>
-            <el-input v-model="form.currencyAmount" placeholder="输入数量">
-              <template #prefix>
-                <el-icon><Coin /></el-icon>
-              </template>
-            </el-input>
-          </div>
+        <!-- 类型选择 -->
+        <div class="type-selector">
+          <el-radio-group v-model="rechargeCategory" size="default">
+            <el-radio-button label="currency">
+              <el-icon><Coin /></el-icon>
+              <span>货币</span>
+            </el-radio-button>
+            <el-radio-button label="gm">
+              <el-icon><Trophy /></el-icon>
+              <span>GM权限</span>
+            </el-radio-button>
+            <el-radio-button label="exp">
+              <el-icon><TrendCharts /></el-icon>
+              <span>经验/熟练</span>
+            </el-radio-button>
+            <el-radio-button label="points">
+              <el-icon><Medal /></el-icon>
+              <span>贡献/积分</span>
+            </el-radio-button>
+          </el-radio-group>
         </div>
-        <div class="action-bar">
-          <el-button type="primary" @click="rechargeCurrency">
-            <el-icon><Check /></el-icon>
-            立即充值
-          </el-button>
-          <el-button @click="getRechargeRecord">
-            <el-icon><Document /></el-icon>
-            充值记录
-          </el-button>
-        </div>
-      </div>
-    </div>
 
-    <!-- GM Level / Coin -->
-    <div class="panel-card">
-      <div class="card-header">
-        <div class="header-icon purple">
-          <el-icon><Trophy /></el-icon>
-        </div>
-        <div class="header-text">
-          <h3>GM权限</h3>
-          <p>设置GM等级与GM币</p>
-        </div>
-      </div>
-      <div class="card-body">
-        <div class="split-section">
-          <div class="section-block">
-            <div class="section-title">GM等级设置</div>
+        <!-- 动态表单区域 -->
+        <div class="form-area">
+          <!-- 货币充值 -->
+          <template v-if="rechargeCategory === 'currency'">
             <div class="form-grid cols-2">
               <div class="form-item">
-                <label>选择等级</label>
-                <el-select v-model="form.gmLevel" @change="updateGmLevelAmount">
-                  <el-option v-for="i in 8" :key="i" :label="'GM'+(i-1)" :value="'GM'+(i-1)" />
+                <label>货币类型</label>
+                <el-select v-model="form.currencyType" placeholder="选择类型">
+                  <el-option label="仙玉" value="仙玉" />
+                  <el-option label="点卡" value="点卡" />
+                  <el-option label="银子" value="银子" />
+                  <el-option label="储备" value="储备" />
                 </el-select>
               </div>
               <div class="form-item">
-                <label>对应数值</label>
-                <el-input v-model="form.gmLevelAmount" readonly disabled />
+                <label>充值数量</label>
+                <el-input v-model="form.currencyAmount" placeholder="输入数量" type="number">
+                  <template #prefix>
+                    <el-icon><Coin /></el-icon>
+                  </template>
+                </el-input>
               </div>
             </div>
-            <el-button type="primary" class="section-btn purple" @click="rechargeGmLevel">
-              设置GM等级
-            </el-button>
-          </div>
-          <div class="section-divider"></div>
-          <div class="section-block">
-            <div class="section-title">GM币充值</div>
-            <div class="form-item">
-              <label>充值数额</label>
-              <el-input v-model="form.gmCoinAmount" placeholder="输入GM币数量">
-                <template #prefix>
-                  <el-icon><Money /></el-icon>
-                </template>
-              </el-input>
-            </div>
-            <el-button type="primary" class="section-btn indigo" @click="rechargeGmCoin">
-              充值GM币
-            </el-button>
-          </div>
-        </div>
-      </div>
-    </div>
+          </template>
 
-    <!-- Exp / Skills -->
-    <div class="panel-card">
-      <div class="card-header">
-        <div class="header-icon green">
-          <el-icon><TrendCharts /></el-icon>
-        </div>
-        <div class="header-text">
-          <h3>经验/熟练/积分</h3>
-          <p>充值各类数值属性</p>
-        </div>
-      </div>
-      <div class="card-body">
-        <div class="form-grid cols-2">
-          <div class="form-item">
-            <label>充值类型</label>
-            <el-select v-model="form.rechargeType" placeholder="选择类型">
-              <el-option-group label="经验类">
-                <el-option label="充值经验" value="充值经验" />
-                <el-option label="充值累充" value="充值累充" />
-              </el-option-group>
-              <el-option-group label="熟练度">
-                <el-option label="打造熟练" value="打造熟练" />
-                <el-option label="裁缝熟练" value="裁缝熟练" />
-                <el-option label="炼金熟练" value="炼金熟练" />
-                <el-option label="淬灵熟练" value="淬灵熟练" />
-              </el-option-group>
-              <el-option-group label="贡献/积分">
-                <el-option label="充值帮贡" value="充值帮贡" />
-                <el-option label="充值门贡" value="充值门贡" />
-                <el-option label="活跃积分" value="活跃积分" />
-                <el-option label="比武积分" value="比武积分" />
-              </el-option-group>
-            </el-select>
-          </div>
-          <div class="form-item">
-            <label>充值数额</label>
-            <el-input v-model="form.genericAmount" placeholder="输入数额">
-              <template #prefix>
-                <el-icon><Plus /></el-icon>
+          <!-- GM权限 -->
+          <template v-else-if="rechargeCategory === 'gm'">
+            <div class="form-grid cols-3">
+              <div class="form-item">
+                <label>设置类型</label>
+                <el-select v-model="form.gmType" placeholder="选择类型">
+                  <el-option label="GM等级" value="level" />
+                  <el-option label="GM币" value="coin" />
+                </el-select>
+              </div>
+              <template v-if="form.gmType === 'level'">
+                <div class="form-item">
+                  <label>选择等级</label>
+                  <el-select v-model="form.gmLevel">
+                    <el-option v-for="i in 8" :key="i" :label="'GM'+(i-1)" :value="i-1" />
+                  </el-select>
+                </div>
+                <div class="form-item">
+                  <label>对应数值</label>
+                  <el-input :model-value="form.gmLevel" readonly disabled />
+                </div>
               </template>
-            </el-input>
-          </div>
+              <template v-else>
+                <div class="form-item span-2">
+                  <label>GM币数量</label>
+                  <el-input v-model="form.gmCoinAmount" placeholder="输入数量" type="number">
+                    <template #prefix>
+                      <el-icon><Money /></el-icon>
+                    </template>
+                  </el-input>
+                </div>
+              </template>
+            </div>
+          </template>
+
+          <!-- 经验/熟练 -->
+          <template v-else-if="rechargeCategory === 'exp'">
+            <div class="form-grid cols-2">
+              <div class="form-item">
+                <label>充值类型</label>
+                <el-select v-model="form.expType" placeholder="选择类型">
+                  <el-option-group label="经验类">
+                    <el-option label="充值经验" value="充值经验" />
+                    <el-option label="充值累充" value="充值累充" />
+                  </el-option-group>
+                  <el-option-group label="熟练度">
+                    <el-option label="打造熟练" value="打造熟练" />
+                    <el-option label="裁缝熟练" value="裁缝熟练" />
+                    <el-option label="炼金熟练" value="炼金熟练" />
+                    <el-option label="淬灵熟练" value="淬灵熟练" />
+                  </el-option-group>
+                </el-select>
+              </div>
+              <div class="form-item">
+                <label>充值数额</label>
+                <el-input v-model="form.expAmount" placeholder="输入数额" type="number">
+                  <template #prefix>
+                    <el-icon><Plus /></el-icon>
+                  </template>
+                </el-input>
+              </div>
+            </div>
+          </template>
+
+          <!-- 贡献/积分 -->
+          <template v-else-if="rechargeCategory === 'points'">
+            <div class="form-grid cols-2">
+              <div class="form-item">
+                <label>充值类型</label>
+                <el-select v-model="form.pointsType" placeholder="选择类型">
+                  <el-option label="充值帮贡" value="充值帮贡" />
+                  <el-option label="充值门贡" value="充值门贡" />
+                  <el-option label="活跃积分" value="活跃积分" />
+                  <el-option label="比武积分" value="比武积分" />
+                </el-select>
+              </div>
+              <div class="form-item">
+                <label>充值数额</label>
+                <el-input v-model="form.pointsAmount" placeholder="输入数额" type="number">
+                  <template #prefix>
+                    <el-icon><Plus /></el-icon>
+                  </template>
+                </el-input>
+              </div>
+            </div>
+          </template>
         </div>
+
+        <!-- 操作按钮 -->
         <div class="action-bar">
-          <el-button type="success" @click="rechargeGeneric">
+          <el-button type="primary" @click="handleRecharge">
             <el-icon><Check /></el-icon>
-            确认充值
+            立即充值
+          </el-button>
+          <el-button v-if="rechargeCategory === 'currency'" @click="getRechargeRecord">
+            <el-icon><Document /></el-icon>
+            充值记录
           </el-button>
         </div>
       </div>
@@ -160,14 +175,14 @@
       <div class="card-body">
         <div class="bagua-grid">
           <div 
-            v-for="name in baguaList" 
-            :key="name.value"
+            v-for="item in baguaList" 
+            :key="item.value"
             class="bagua-item"
-            :class="{ active: form.baguaName === name.value }"
-            @click="form.baguaName = name.value"
+            :class="{ active: form.baguaName === item.value }"
+            @click="form.baguaName = item.value"
           >
-            <span class="bagua-symbol">{{ name.symbol }}</span>
-            <span class="bagua-name">{{ name.value }}</span>
+            <span class="bagua-symbol">{{ item.symbol }}</span>
+            <span class="bagua-name">{{ item.value }}</span>
           </div>
         </div>
         <div class="action-bar center">
@@ -182,16 +197,18 @@
 </template>
 
 <script setup>
-import { reactive, inject } from 'vue'
+import { ref, reactive, inject } from 'vue'
 import request from '@/api/request'
 import { ElMessage } from 'element-plus'
 import { 
-  Wallet, Trophy, TrendCharts, Compass, 
+  Wallet, Trophy, TrendCharts, Compass, Medal,
   Coin, Check, Document, Money, Plus, Setting 
 } from '@element-plus/icons-vue'
 
 const playerId = inject('playerId')
 const logToConsole = inject('logToConsole')
+
+const rechargeCategory = ref('currency')
 
 const baguaList = [
   { value: '乾', symbol: '☰' },
@@ -205,19 +222,22 @@ const baguaList = [
 ]
 
 const form = reactive({
+  // 货币
   currencyType: '仙玉',
   currencyAmount: '100',
-  gmLevel: 'GM1',
-  gmLevelAmount: '1',
+  // GM
+  gmType: 'level',
+  gmLevel: 1,
   gmCoinAmount: '100',
-  rechargeType: '充值经验',
-  genericAmount: '100',
+  // 经验/熟练
+  expType: '充值经验',
+  expAmount: '100',
+  // 贡献/积分
+  pointsType: '充值帮贡',
+  pointsAmount: '100',
+  // 八卦
   baguaName: '乾'
 })
-
-function updateGmLevelAmount() {
-  form.gmLevelAmount = form.gmLevel.replace('GM', '')
-}
 
 async function sendReq(func, args) {
   if (!playerId.value) {
@@ -236,34 +256,36 @@ async function sendReq(func, args) {
   }
 }
 
-function rechargeCurrency() {
-  sendReq('recharge_currency', { 
-    currency_type: form.currencyType, 
-    amount: parseInt(form.currencyAmount) || 0 
-  })
-}
-
-function rechargeGmLevel() {
-  sendReq('recharge_gm_level', { 
-    amount: parseInt(form.gmLevelAmount) || 0, 
-    gm_level: form.gmLevel 
-  })
-}
-
-function rechargeGmCoin() {
-  sendReq('recharge_gm_coin', { amount: parseInt(form.gmCoinAmount) || 0 })
-}
-
-function rechargeGeneric() {
-  const type = form.rechargeType
-  const amount = parseInt(form.genericAmount) || 0
-  const skillTypes = ['充值经验', '充值累充', '打造熟练', '裁缝熟练', '炼金熟练', '淬灵熟练']
-  const factionTypes = ['充值帮贡', '充值门贡', '活跃积分', '比武积分']
-  
-  if (skillTypes.includes(type)) {
-    sendReq('recharge_skill', { amount, skill_type: type })
-  } else if (factionTypes.includes(type)) {
-    sendReq('recharge_faction', { amount, faction_type: type })
+function handleRecharge() {
+  switch (rechargeCategory.value) {
+    case 'currency':
+      sendReq('recharge_currency', { 
+        currency_type: form.currencyType, 
+        amount: parseInt(form.currencyAmount) || 0 
+      })
+      break
+    case 'gm':
+      if (form.gmType === 'level') {
+        sendReq('recharge_gm_level', { 
+          amount: form.gmLevel, 
+          gm_level: 'GM' + form.gmLevel 
+        })
+      } else {
+        sendReq('recharge_gm_coin', { amount: parseInt(form.gmCoinAmount) || 0 })
+      }
+      break
+    case 'exp':
+      sendReq('recharge_skill', { 
+        amount: parseInt(form.expAmount) || 0, 
+        skill_type: form.expType 
+      })
+      break
+    case 'points':
+      sendReq('recharge_faction', { 
+        amount: parseInt(form.pointsAmount) || 0, 
+        faction_type: form.pointsType 
+      })
+      break
   }
 }
 
@@ -288,7 +310,7 @@ async function setBagua() {
 <style scoped>
 .recharge-panel {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
   gap: 20px;
 }
 
@@ -304,6 +326,20 @@ async function setBagua() {
 .panel-card:hover {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   transform: translateY(-2px);
+}
+
+.panel-card.main-card {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 900px) {
+  .recharge-panel {
+    grid-template-columns: 2fr 1fr;
+  }
+  
+  .panel-card.main-card {
+    grid-column: 1;
+  }
 }
 
 .card-header {
@@ -326,19 +362,9 @@ async function setBagua() {
   flex-shrink: 0;
 }
 
-.header-icon.yellow {
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-  color: #d97706;
-}
-
-.header-icon.purple {
-  background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
-  color: #7c3aed;
-}
-
-.header-icon.green {
-  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-  color: #059669;
+.header-icon.gradient {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
 }
 
 .header-icon.slate {
@@ -363,19 +389,101 @@ async function setBagua() {
   padding: 20px 24px 24px;
 }
 
+/* Type Selector */
+.type-selector {
+  margin-bottom: 20px;
+}
+
+.type-selector :deep(.el-radio-group) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  width: 100%;
+}
+
+.type-selector :deep(.el-radio-button) {
+  flex: 1;
+  min-width: 100px;
+}
+
+.type-selector :deep(.el-radio-button__inner) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 0;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.type-selector :deep(.el-radio-button:first-child .el-radio-button__inner) {
+  border-radius: 10px 0 0 10px;
+}
+
+.type-selector :deep(.el-radio-button:last-child .el-radio-button__inner) {
+  border-radius: 0 10px 10px 0;
+}
+
+.type-selector :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-color: #667eea;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+@media (max-width: 500px) {
+  .type-selector :deep(.el-radio-button) {
+    flex: 1 1 45%;
+  }
+  
+  .type-selector :deep(.el-radio-button:first-child .el-radio-button__inner) {
+    border-radius: 10px 0 0 0;
+  }
+  
+  .type-selector :deep(.el-radio-button:nth-child(2) .el-radio-button__inner) {
+    border-radius: 0 10px 0 0;
+  }
+  
+  .type-selector :deep(.el-radio-button:nth-child(3) .el-radio-button__inner) {
+    border-radius: 0 0 0 10px;
+  }
+  
+  .type-selector :deep(.el-radio-button:last-child .el-radio-button__inner) {
+    border-radius: 0 0 10px 0;
+  }
+}
+
+/* Form Area */
+.form-area {
+  min-height: 80px;
+  padding: 20px;
+  background: #f9fafb;
+  border-radius: 12px;
+  border: 1px dashed #e5e7eb;
+}
+
 .form-grid {
   display: grid;
   gap: 16px;
 }
 
 .form-grid.cols-2 {
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.form-grid.cols-3 {
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
 }
 
 .form-item {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.form-item.span-2 {
+  grid-column: span 2;
 }
 
 .form-item label {
@@ -395,6 +503,7 @@ async function setBagua() {
 .form-item :deep(.el-select .el-input__wrapper) {
   border-radius: 10px;
   box-shadow: 0 0 0 1px #e5e7eb;
+  background: #fff;
   transition: all 0.2s ease;
 }
 
@@ -405,7 +514,7 @@ async function setBagua() {
 
 .form-item :deep(.el-input__wrapper.is-focus),
 .form-item :deep(.el-select .el-input.is-focus .el-input__wrapper) {
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.3);
 }
 
 .action-bar {
@@ -428,64 +537,13 @@ async function setBagua() {
   transition: all 0.2s ease;
 }
 
+.action-bar :deep(.el-button--primary) {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+}
+
 .action-bar :deep(.el-button:hover) {
   transform: translateY(-1px);
-}
-
-/* Split Section for GM Card */
-.split-section {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  gap: 20px;
-  align-items: stretch;
-}
-
-@media (max-width: 600px) {
-  .split-section {
-    grid-template-columns: 1fr;
-  }
-  
-  .section-divider {
-    height: 1px !important;
-    width: 100% !important;
-    background: linear-gradient(90deg, transparent, #e5e7eb, transparent) !important;
-  }
-}
-
-.section-block {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.section-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: #374151;
-  padding-bottom: 8px;
-  border-bottom: 2px solid #f3f4f6;
-}
-
-.section-divider {
-  width: 1px;
-  background: linear-gradient(180deg, transparent, #e5e7eb, transparent);
-  margin: 0 4px;
-}
-
-.section-btn {
-  margin-top: auto;
-  border-radius: 10px !important;
-  width: 100%;
-}
-
-.section-btn.purple {
-  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%) !important;
-  border: none !important;
-}
-
-.section-btn.indigo {
-  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%) !important;
-  border: none !important;
 }
 
 /* Bagua Grid */
@@ -564,8 +622,19 @@ async function setBagua() {
     color: #f9fafb;
   }
   
+  .form-area {
+    background: #111827;
+    border-color: #374151;
+  }
+  
   .form-item label {
     color: #9ca3af;
+  }
+  
+  .form-item :deep(.el-input__wrapper),
+  .form-item :deep(.el-select .el-input__wrapper) {
+    background: #1f2937;
+    box-shadow: 0 0 0 1px #374151;
   }
   
   .bagua-item {

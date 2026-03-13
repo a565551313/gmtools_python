@@ -96,6 +96,7 @@ class Permission:
     @staticmethod
     def create(code: str, name: str, category: str, description: str = "") -> Optional['Permission']:
         """创建新权限"""
+        permission_id = None
         try:
             with db.get_cursor() as cursor:
                 cursor.execute("""
@@ -105,11 +106,13 @@ class Permission:
                 
                 permission_id = cursor.lastrowid
                 logger.info(f"创建权限成功: {code}")
-                
-                return Permission.get_by_id(permission_id)
         except Exception as e:
             logger.error(f"创建权限失败: {e}")
             return None
+            
+        if permission_id:
+            return Permission.get_by_id(permission_id)
+        return None
     
     @staticmethod
     def get_by_id(permission_id: int) -> Optional['Permission']:

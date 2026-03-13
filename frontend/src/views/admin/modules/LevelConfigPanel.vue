@@ -40,6 +40,14 @@
 
       <el-table-column prop="sort_order" label="排序" width="80" sortable />
 
+      <el-table-column prop="max_bind_ids" label="绑定限制" width="120" align="center">
+        <template #default="{ row }">
+          <el-tag :type="row.max_bind_ids === -1 ? 'success' : 'info'" size="small">
+            {{ row.max_bind_ids === -1 ? '不受限' : row.max_bind_ids === -2 ? '无限绑定' : row.max_bind_ids }}
+          </el-tag>
+        </template>
+      </el-table-column>
+
       <el-table-column label="使用统计" width="280">
         <template #default="{ row }">
           <div class="stats-container">
@@ -142,6 +150,18 @@
           <span class="form-tip">数字越小越靠前</span>
         </el-form-item>
 
+        <el-form-item label="绑定限制" prop="max_bind_ids">
+          <el-input-number
+            v-model="formData.max_bind_ids"
+            :min="-2"
+            :max="100"
+            style="width: 100%"
+          />
+          <div class="form-tip">
+            -1: 不受限 (无需绑定); -2: 无限绑定 (仅限绑定ID); 1+: 绑定数量上限
+          </div>
+        </el-form-item>
+
         <el-form-item label="启用状态" prop="is_active" v-if="dialogMode === 'edit'">
           <el-switch v-model="formData.is_active" />
         </el-form-item>
@@ -178,7 +198,8 @@ const formData = reactive({
   display_name: '',
   description: '',
   sort_order: 1,
-  is_active: true
+  is_active: true,
+  max_bind_ids: 1
 })
 
 const formRules = {
@@ -236,6 +257,7 @@ function showEditDialog(row) {
   formData.description = row.description
   formData.sort_order = row.sort_order
   formData.is_active = row.is_active
+  formData.max_bind_ids = row.max_bind_ids
   dialogVisible.value = true
 }
 
@@ -248,6 +270,7 @@ function resetForm() {
   formData.description = ''
   formData.sort_order = formData.level_value
   formData.is_active = true
+  formData.max_bind_ids = 1
 }
 
 // 提交表单
@@ -264,7 +287,8 @@ async function submitForm() {
           level_value: formData.level_value,
           display_name: formData.display_name,
           description: formData.description,
-          sort_order: formData.sort_order
+          sort_order: formData.sort_order,
+          max_bind_ids: formData.max_bind_ids
         })
         ElMessage.success(`等级 ${formData.level_value} 创建成功`)
       } else {
@@ -272,7 +296,8 @@ async function submitForm() {
           display_name: formData.display_name,
           description: formData.description,
           sort_order: formData.sort_order,
-          is_active: formData.is_active
+          is_active: formData.is_active,
+          max_bind_ids: formData.max_bind_ids
         })
         ElMessage.success(`等级 ${formData.level_value} 更新成功`)
       }

@@ -18,6 +18,7 @@
       <nav class="nav-menu">
         <div 
           v-for="(module, key) in modules" 
+          v-show="!module.hidden"
           :key="key"
           class="nav-item"
           :class="{ active: currentModule === key }"
@@ -69,6 +70,9 @@
                 </el-dropdown-item>
                 <el-dropdown-item command="change-password">
                   <el-icon><Lock /></el-icon>修改密码
+                </el-dropdown-item>
+                <el-dropdown-item command="bind-id">
+                  <el-icon><Link /></el-icon>绑定ID
                 </el-dropdown-item>
                 <el-dropdown-item command="user-messages">
                   <el-icon><ChatDotRound /></el-icon>站内消息
@@ -211,7 +215,7 @@ import { useRouter } from 'vue-router'
 import { 
   Monitor, User, Setting, Wallet, Goods, Present, 
   Ticket, Document, Menu, Close, ArrowRight, SwitchButton,
-  Delete, UserFilled, ArrowDown, Lock, ChatDotRound, Bell
+  Delete, UserFilled, ArrowDown, Lock, ChatDotRound, Bell, Link
 } from '@element-plus/icons-vue'
 
 // Import Modules
@@ -225,6 +229,7 @@ import GamePanel from './modules/GamePanel.vue'
 import ActivationPanel from './modules/ActivationPanel.vue'
 import LogsPanel from './modules/LogsPanel.vue'
 import MessagesPanel from './modules/MessagesPanel.vue'
+import BindIdPanel from './modules/BindIdPanel.vue'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -269,7 +274,8 @@ const modules = {
   gift: { name: '物品赠送', icon: 'Present', component: GiftPanel },
   game: { name: '游戏管理', icon: 'Setting', component: GamePanel },
   activation: { name: '激活码', icon: 'Ticket', component: ActivationPanel },
-  logs: { name: '日志管理', icon: 'Document', component: LogsPanel }
+  logs: { name: '日志管理', icon: 'Document', component: LogsPanel },
+  'bind-id': { name: '绑定ID', icon: 'Link', component: BindIdPanel, hidden: true }
 }
 
 // Provide playerId to child components
@@ -302,6 +308,8 @@ function handleUserCommand(command) {
     showActivationDialog.value = true
   } else if (command === 'change-password') {
     showChangePasswordDialog.value = true
+  } else if (command === 'bind-id') {
+    switchModule('bind-id')
   } else if (command === 'user-messages') {
     showMessages.value = true
   } else if (command === 'announcements' || command === 'work-order') {
@@ -378,7 +386,7 @@ function clearLogs() {
 
 // 激活特权功能
 async function useActivationCode() {
-  if (!activationForm.code) {
+  if (!activationForm.value.code) {
     ElMessage.warning('请填写激活码')
     return
   }
@@ -392,7 +400,7 @@ async function useActivationCode() {
         'Authorization': `Bearer ${authStore.token}`
       },
       body: JSON.stringify({
-        code: activationForm.code
+        code: activationForm.value.code
       })
     })
     
@@ -401,7 +409,7 @@ async function useActivationCode() {
     if (response.ok) {
       ElMessage.success(`激活成功：${data.message}`)
       showActivationDialog.value = false
-      activationForm.code = ''
+      activationForm.value.code = ''
     } else {
       ElMessage.error(`激活失败：${data.message || '未知错误'}`)
     }

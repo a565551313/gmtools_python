@@ -81,9 +81,14 @@ async def create_messages(
                 content=request.content
             )
             
-            if message:
-                created_messages.append(message.to_dict())
-                result_message = f"消息已成功发送给用户ID {request.recipient_id}"
+            if not message:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="消息创建失败（数据库写入失败）"
+                )
+
+            created_messages.append(message.to_dict())
+            result_message = f"消息已成功发送给用户ID {request.recipient_id}"
         
         # 处理多个收件人（管理员场景）
         elif request.user_ids:
@@ -96,6 +101,7 @@ async def create_messages(
             
             success_count = 0
             failed_users = []
+            failed_create = []
             
             for user_id in request.user_ids:
                 # 检查用户是否存在
@@ -116,11 +122,21 @@ async def create_messages(
                 if message:
                     created_messages.append(message.to_dict())
                     success_count += 1
+                else:
+                    failed_create.append(user_id)
             
             # 添加成功和失败的统计信息
             result_message = f"消息已成功发送给 {success_count} 位用户"
             if failed_users:
                 result_message += f"，{len(failed_users)} 位用户发送失败（用户ID不存在：{', '.join(map(str, failed_users))}）"
+            if failed_create:
+                result_message += f"，{len(failed_create)} 位用户发送失败（数据库写入失败：{', '.join(map(str, failed_create))}）"
+
+            if success_count == 0:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=result_message
+                )
         
         return {
             "status": "success",

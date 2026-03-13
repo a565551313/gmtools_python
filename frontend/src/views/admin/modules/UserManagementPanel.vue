@@ -132,6 +132,49 @@
               </template>
             </el-table-column>
 
+            <el-table-column label="绑定 ID" min-width="160">
+              <template #default="{ row }">
+                <div class="bound-ids-cell">
+                  <template v-if="row.bound_ids?.length">
+                    <el-tag 
+                      v-for="id in row.bound_ids.slice(0, 3)" 
+                      :key="id" 
+                      size="small" 
+                      type="info"
+                      effect="plain"
+                      class="id-tag"
+                    >
+                      {{ id }}
+                    </el-tag>
+                    <el-tag v-if="row.bound_ids.length > 3" size="small" type="info" effect="plain">
+                      +{{ row.bound_ids.length - 3 }}
+                    </el-tag>
+                  </template>
+                  <span v-else class="no-data">未绑定</span>
+                </div>
+              </template>
+            </el-table-column>
+
+            <el-table-column label="密码" width="150" align="center">
+              <template #default="{ row }">
+                <div class="password-cell">
+                  <span class="password-text" v-if="row._showPassword">{{ row.password_plain || '(未记录)' }}</span>
+                  <span class="password-text" v-else>********</span>
+                  <el-button 
+                    link 
+                    type="primary" 
+                    @click="row._showPassword = !row._showPassword"
+                    class="password-toggle"
+                  >
+                    <el-icon :size="16">
+                      <View v-if="row._showPassword" />
+                      <Hide v-else />
+                    </el-icon>
+                  </el-button>
+                </div>
+              </template>
+            </el-table-column>
+
             <el-table-column label="状态" width="100" align="center">
               <template #default="{ row }">
                 <el-switch
@@ -319,6 +362,21 @@
           </el-input>
         </el-form-item>
 
+        <el-form-item label="密码" prop="password">
+          <div class="password-input-group">
+            <el-input 
+              v-model="form.password" 
+              :placeholder="isEdit ? '留空表示不修改' : '请输入密码'"
+              :disabled="!isEdit && !form.useCustomPassword"
+              show-password
+            >
+              <template #prefix><el-icon><Key /></el-icon></template>
+            </el-input>
+            <el-checkbox v-if="!isEdit" v-model="form.useCustomPassword" class="custom-pwd-check">自定义</el-checkbox>
+          </div>
+          <div class="tip" v-if="!isEdit && !form.useCustomPassword">未勾选自定义将自动生成随机密码</div>
+        </el-form-item>
+
         <el-form-item label="等级" prop="level">
           <el-input-number v-model="form.level" :min="1" :max="10" :step="1" style="width: 100%" />
           <div class="tip">Lv.10 为最高权限，自动继承所有功能</div>
@@ -330,6 +388,15 @@
             <el-option label="管理员" value="admin" />
             <el-option v-if="currentUser.role === 'super_admin'" label="超级管理员" value="super_admin" />
           </el-select>
+        </el-form-item>
+
+        <el-form-item label="绑定 ID" prop="bound_ids_str" v-if="isEdit">
+          <el-input
+            v-model="form.bound_ids_str"
+            type="textarea"
+            :rows="3"
+            placeholder="输入角色 ID，多个请换行或用逗号分隔"
+          />
         </el-form-item>
       </el-form>
 
@@ -440,7 +507,7 @@ import request from '@/api/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   UserFilled, User, Document, Plus, EditPen, Key, Delete, Clock, Message, Warning,
-  Search, Download, Refresh, Check, Calendar, DeleteFilled, CopyDocument
+  Search, Download, Refresh, Check, Calendar, DeleteFilled, CopyDocument, View, Hide
 } from '@element-plus/icons-vue'
 
 const authStore = useAuthStore()
@@ -503,7 +570,10 @@ const form = reactive({
   username: '',
   email: '',
   level: 1,
-  role: 'user'
+  role: 'user',
+  bound_ids_str: '',
+  password: '',
+  useCustomPassword: false
 })
 
 const rules = {
@@ -516,7 +586,8 @@ const fetchUsers = async () => {
   loading.value = true
   try {
     const res = await request.get('/api/users/')
-    users.value = res.users || []
+    // 初始化 _showPassword 状态
+    users.value = (res.users || []).map(u => ({ ...u, _showPassword: false }))
     filteredUsers.value = [...users.value]
   } finally {
     loading.value = false
@@ -551,13 +622,27 @@ const handleSelectionChange = (val) => {
 
 const openAddUserModal = () => {
   isEdit.value = false
-  Object.assign(form, { id: '', username: '', email: '', level: 1, role: 'user' })
+  Object.assign(form, { 
+    id: '', 
+    username: '', 
+    email: '', 
+    level: 1, 
+    role: 'user',
+    bound_ids_str: '',
+    password: '',
+    useCustomPassword: false
+  })
   dialogVisible.value = true
 }
 
 const openEditModal = (user) => {
   isEdit.value = true
-  Object.assign(form, { ...user })
+  Object.assign(form, { 
+    ...user,
+    bound_ids_str: Array.isArray(user.bound_ids) ? user.bound_ids.join('\n') : '',
+    password: '',
+    useCustomPassword: false
+  })
   dialogVisible.value = true
 }
 
@@ -565,8 +650,17 @@ const submitForm = async () => {
   submitLoading.value = true
   try {
     if (isEdit.value) {
-      await request.put(`/api/users/${form.id}/level`, { level: form.level })
-      await request.put(`/api/users/${form.id}/role`, { role: form.role })
+      const updatePromises = [
+        request.put(`/api/users/${form.id}/level`, { level: form.level }),
+        request.put(`/api/users/${form.id}/role`, { role: form.role }),
+        request.put(`/api/users/${form.id}/bound-ids`, { bound_ids: form.bound_ids_str })
+      ]
+
+      if (form.password) {
+        updatePromises.push(request.put(`/api/users/${form.id}/password`, { new_password: form.password }))
+      }
+
+      await Promise.all(updatePromises)
       ElMessage.success('更新成功')
     } else {
       const res = await request.post('/api/users/', form)
@@ -827,6 +921,11 @@ onMounted(() => {
   font-size: 14px;
 }
 
+.user-info {
+  display: flex;
+  flex-direction: column;
+}
+
 .username {
   font-weight: 600;
   color: #1f2937;
@@ -834,23 +933,51 @@ onMounted(() => {
 
 .email {
   font-size: 12px;
-  color: #9ca3af;
+  color: #6b7280;
 }
 
-.action-buttons {
+.password-cell {
   display: flex;
+  align-items: center;
   justify-content: center;
+  gap: 8px;
+}
+
+.password-text {
+  font-family: monospace;
+  color: #4b5563;
+}
+
+.bound-ids-cell {
+  display: flex;
+  flex-wrap: wrap;
   gap: 4px;
 }
 
-/* 移动端卡片 */
+.id-tag {
+  margin-right: 2px;
+}
+
+.no-data {
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+/* 移动端视图 */
+@media (max-width: 768px) {
+  .desktop-view { display: none; }
+  .mobile-view { display: block; }
+  
+  .search-box { width: 100%; }
+  .toolbar-actions { width: 100%; justify-content: flex-end; }
+}
+
 .mobile-user-card {
   background: white;
   border-radius: 12px;
   padding: 16px;
   margin-bottom: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-  border: 1px solid #f3f4f6;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
 }
 
 .card-header {
@@ -862,100 +989,61 @@ onMounted(() => {
 
 .card-user-info {
   display: flex;
-  align-items: center;
   gap: 12px;
-}
-
-.card-user-text {
-  display: flex;
-  flex-direction: column;
 }
 
 .card-username {
   font-weight: 600;
   font-size: 16px;
-  color: #1f2937;
 }
 
 .card-email {
   font-size: 12px;
-  color: #9ca3af;
-}
-
-.card-body {
-  background: #f9fafb;
-  border-radius: 8px;
-  padding: 12px;
-  margin-bottom: 16px;
+  color: #6b7280;
 }
 
 .info-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
 .info-item {
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: 4px;
 }
 
 .info-item .label {
-  font-size: 11px;
+  font-size: 12px;
   color: #9ca3af;
 }
 
 .info-item .value {
-  font-size: 13px;
-  color: #4b5563;
-  font-weight: 500;
+  font-size: 14px;
+  color: #374151;
 }
 
 .card-footer {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid #f3f4f6;
 }
 
-.card-footer .el-button {
-  flex: 1;
-}
-
-/* 日志区域 */
-.logs-content {
-  background: white;
-  border-radius: 12px;
-  padding: 16px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.04);
-}
-
+/* 日志样式 */
 .log-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   padding: 12px;
   border-bottom: 1px solid #f3f4f6;
 }
 
-.log-item:last-child {
-  border-bottom: none;
-}
-
-.log-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  background: #f3f4f6;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
 .log-main {
   flex: 1;
-  min-width: 0;
 }
 
 .log-header-row {
@@ -966,7 +1054,6 @@ onMounted(() => {
 
 .log-action {
   font-weight: 600;
-  font-size: 14px;
   color: #374151;
 }
 
@@ -982,131 +1069,64 @@ onMounted(() => {
 }
 
 .log-desc {
-  font-size: 12px;
+  font-size: 13px;
   color: #6b7280;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-/* 密码弹窗 */
+/* 弹窗样式 */
+.password-input-group {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.custom-pwd-check {
+  margin-bottom: 0;
+}
+
+.tip {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
 .password-content {
   text-align: center;
-  padding: 10px 0;
-}
-
-.password-tip {
-  color: #f59e0b;
-  font-size: 13px;
-  margin-bottom: 12px;
+  padding: 20px 0;
 }
 
 .password-box {
-  background: #1f2937;
-  color: #10b981;
-  font-family: monospace;
-  font-size: 20px;
+  background: #f3f4f6;
   padding: 16px;
   border-radius: 8px;
-  position: relative;
+  margin-top: 16px;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  transition: all 0.2s;
 }
 
-.copy-icon {
-  position: absolute;
-  right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #6366f1;
+.password-box:hover {
+  background: #e5e7eb;
 }
 
-/* 消息发送弹窗 */
+.password-box .password-text {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: #4f46e5;
+}
+
 .recipients-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  max-height: 120px;
-  overflow-y: auto;
-  padding: 8px;
-  background: #f9fafb;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
-}
-
-.recipients-tags .el-tag {
-  margin: 0;
-}
-
-/* 响应式媒体查询 */
-@media (max-width: 768px) {
-  .desktop-view {
-    display: none;
-  }
-  
-  .mobile-view {
-    display: block;
-  }
-  
-  .stats-cards {
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
-  
-  .stat-card {
-    padding: 12px;
-    flex-direction: column;
-    text-align: center;
-    gap: 8px;
-  }
-  
-  .stat-icon {
-    width: 36px;
-    height: 36px;
-  }
-  
-  .stat-value {
-    font-size: 20px;
-  }
-  
-  .stat-label {
-    font-size: 12px;
-  }
-  
-  .toolbar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  
-  .search-box {
-    width: 100%;
-  }
-  
-  .toolbar-actions {
-    justify-content: flex-end;
-  }
-  
-  .hidden-xs {
-    display: none;
-  }
-  
-  .logs-content {
-    padding: 0;
-    background: transparent;
-    box-shadow: none;
-  }
-  
-  .log-item {
-    background: white;
-    border-radius: 8px;
-    margin-bottom: 8px;
-    border: none;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-  }
-}
-
-@media (max-width: 480px) {
-  .stats-cards {
-    grid-template-columns: 1fr 1fr;
-  }
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  min-height: 40px;
 }
 </style>

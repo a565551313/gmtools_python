@@ -40,6 +40,7 @@ class LevelConfigCreateRequest(BaseModel):
     display_name: str = Field(..., min_length=1, max_length=50, description="显示名称")
     description: str = Field(default="", max_length=200, description="等级描述")
     sort_order: Optional[int] = Field(default=None, description="排序顺序")
+    max_bind_ids: int = Field(default=1, description="最大绑定 ID 数量 (-1: 不受限, -2: 无限绑定但仅限绑定 ID)")
     
     class Config:
         json_schema_extra = {
@@ -58,6 +59,7 @@ class LevelConfigUpdateRequest(BaseModel):
     description: Optional[str] = Field(default=None, max_length=200)
     sort_order: Optional[int] = Field(default=None)
     is_active: Optional[bool] = Field(default=None)
+    max_bind_ids: Optional[int] = Field(default=None)
     
     class Config:
         json_schema_extra = {
@@ -158,7 +160,8 @@ async def create_level_config(
         level_value=data.level_value,
         display_name=data.display_name,
         description=data.description,
-        sort_order=data.sort_order
+        sort_order=data.sort_order,
+        max_bind_ids=data.max_bind_ids
     )
     
     if not config:
@@ -208,6 +211,8 @@ async def update_level_config(
         config.sort_order = data.sort_order
     if data.is_active is not None:
         config.is_active = data.is_active
+    if data.max_bind_ids is not None:
+        config.max_bind_ids = data.max_bind_ids
     
     # 保存更新
     if not config.update():

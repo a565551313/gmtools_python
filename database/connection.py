@@ -59,13 +59,21 @@ class DatabaseConnection:
     def init_database(self):
         """初始化数据库表结构"""
         with self.get_cursor() as cursor:
+            def _ensure_table_columns(table_name: str, required_columns):
+                cursor.execute(f"PRAGMA table_info({table_name})")
+                existing = {row["name"] for row in cursor.fetchall()}
+                for column_name, column_sql in required_columns:
+                    if column_name not in existing:
+                        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_sql}")
+
             # 创建用户表
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     username VARCHAR(50) UNIQUE NOT NULL,
-                    email VARCHAR(100) UNIQUE NOT NULL,
+                    email VARCHAR(100) UNIQUE,
                     password_hash VARCHAR(255) NOT NULL,
+                    password_plain VARCHAR(255),
                     level INTEGER DEFAULT 1,
                     role VARCHAR(20) DEFAULT 'user',
                     is_active BOOLEAN DEFAULT 1,
@@ -154,6 +162,19 @@ class DatabaseConnection:
                     FOREIGN KEY (recipient_id) REFERENCES users(id) ON DELETE CASCADE
                 )
             """)
+
+            _ensure_table_columns(
+                "messages",
+                [
+                    ("sender_id", "sender_id INTEGER"),
+                    ("sender_name", "sender_name VARCHAR(50) NOT NULL DEFAULT ''"),
+                    ("recipient_id", "recipient_id INTEGER NOT NULL DEFAULT 0"),
+                    ("title", "title VARCHAR(100) NOT NULL DEFAULT ''"),
+                    ("content", "content TEXT NOT NULL DEFAULT ''"),
+                    ("is_read", "is_read BOOLEAN DEFAULT 0"),
+                    ("created_at", "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+                ],
+            )
             
             # 创建索引
             cursor.execute("""
